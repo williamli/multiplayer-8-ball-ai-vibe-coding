@@ -2294,6 +2294,20 @@
                         // Re-enable buttons on error
                         document.getElementById('createGameBtn').disabled = false;
                         document.getElementById('joinGameBtn').disabled = false;
+                        
+                        // Show connection info overlay if it was hidden
+                        if (document.getElementById('connectionInfo').style.display === 'none') {
+                            document.getElementById('connectionInfo').style.display = 'flex';
+                            
+                            // Hide game ID display
+                            document.getElementById('gameIdDisplay').classList.add('hidden');
+                            
+                            // Hide the chat
+                            document.getElementById('chat').classList.add('hidden');
+                            
+                            // Reset the game
+                            this.resetGame();
+                        }
                     });
                 } catch (err) {
                     console.error('Error initializing PeerJS:', err);
@@ -2426,6 +2440,20 @@
                         // Re-enable buttons on error
                         document.getElementById('createGameBtn').disabled = false;
                         document.getElementById('joinGameBtn').disabled = false;
+                        
+                        // Show connection info overlay if it was hidden
+                        if (document.getElementById('connectionInfo').style.display === 'none') {
+                            document.getElementById('connectionInfo').style.display = 'flex';
+                            
+                            // Hide game ID display
+                            document.getElementById('gameIdDisplay').classList.add('hidden');
+                            
+                            // Hide the chat
+                            document.getElementById('chat').classList.add('hidden');
+                            
+                            // Reset the game
+                            this.resetGame();
+                        }
                     });
                 } catch (err) {
                     console.error('Error initializing connection:', err);
@@ -2443,6 +2471,9 @@
                     this.logMessage('Connection established successfully!');
                     this.otherPlayerConnected = true;
                     this.updateTurnIndicator();
+                    
+                    // Hide connection info overlay
+                    document.getElementById('connectionInfo').style.display = 'none';
                 });
                 
                 this.connection.on('data', (data) => {
@@ -2459,11 +2490,37 @@
                     
                     // Hide game ID display
                     document.getElementById('gameIdDisplay').classList.add('hidden');
+                    
+                    // Hide the chat
+                    document.getElementById('chat').classList.add('hidden');
+                    
+                    // Reset the game
+                    this.resetGame();
+                    
+                    // Re-enable game creation buttons
+                    document.getElementById('createGameBtn').disabled = false;
+                    document.getElementById('joinGameBtn').disabled = false;
                 });
                 
                 this.connection.on('error', (err) => {
                     console.error('Connection error:', err);
                     this.logMessage('Connection error: ' + err.message);
+                    
+                    // Show connection info overlay
+                    document.getElementById('connectionInfo').style.display = 'flex';
+                    
+                    // Hide game ID display
+                    document.getElementById('gameIdDisplay').classList.add('hidden');
+                    
+                    // Hide the chat
+                    document.getElementById('chat').classList.add('hidden');
+                    
+                    // Reset the game
+                    this.resetGame();
+                    
+                    // Re-enable game creation buttons
+                    document.getElementById('createGameBtn').disabled = false;
+                    document.getElementById('joinGameBtn').disabled = false;
                 });
             }
             
