@@ -1,0 +1,29 @@
+{
+  "name": "multiplayer-8-ball-ai-vibe-coding",
+  "version": "1.0.0",
+  "description": "A multiplayer 8-ball pool game created using vibe coding.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "live-server --port=3000 --no-browser --ignore=.git/,.git/**/*",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/williamli/multiplayer-8-ball-ai-vibe-coding.git"
+  },
+  "keywords": [
+    "ai",
+    "vibe",
+    "html",
+    "javascript"
+  ],
+  "author": "William Li",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/williamli/multiplayer-8-ball-ai-vibe-coding/issues"
+  },
+  "homepage": "https://github.com/williamli/multiplayer-8-ball-ai-vibe-coding#readme",
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}
