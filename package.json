@@ -4,7 +4,7 @@
   "description": "A multiplayer 8-ball pool game created using vibe coding.",
   "main": "index.js",
   "scripts": {
-    "dev": "live-server --port=3000 --no-browser --ignore=.git/**",
+    "dev": "live-server --port=3000 --no-browser --ignore=.git,.git/**",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
