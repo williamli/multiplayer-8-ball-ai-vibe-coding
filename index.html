@@ -1,0 +1,2599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer 8-Ball Pool</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/flowbite@1.5.3/dist/flowbite.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #5D5CDE;
+            --dark-bg: #181818;
+            --light-bg: #FFFFFF;
+            --table-felt: #076324;
+            --table-border: #593A16;
+            --cue-color: #C19A6B;
+            --neon-color: #0ff;
+            --neon-glow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff, 0 0 40px #0ff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            transition: background-color 0.3s ease;
+        }
+
+        .dark {
+            background-color: var(--dark-bg);
+            color: #f0f0f0;
+        }
+
+        .light {
+            background-color: var(--light-bg);
+            color: #333;
+        }
+
+        #permissionScreen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+            min-height: 100vh;
+        }
+
+        .permission-card {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            width: 100%;
+            max-width: 600px;
+            transition: background-color 0.3s ease;
+        }
+
+        .dark .permission-card {
+            background-color: #252525;
+        }
+
+        .permission-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            background-color: rgba(93, 92, 222, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .permission-icon svg {
+            width: 40px;
+            height: 40px;
+            fill: var(--primary-color);
+        }
+
+        #gameContainer {
+            position: relative;
+            display: none; /* Hidden by default until permission is granted */
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            max-width: 100%;
+        }
+
+        .game-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .game-button:hover {
+            background-color: #4a49b2;
+            transform: translateY(-2px);
+        }
+
+        .game-button:disabled {
+            background-color: #9999b9;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #gameInfo {
+            width: 100%;
+            max-width: 1000px;
+            margin-top: 1rem;
+            border-radius: 10px;
+            padding: 1rem;
+            transition: background-color 0.3s ease;
+        }
+
+        .dark #gameInfo {
+            background-color: #252525;
+        }
+
+        .light #gameInfo {
+            background-color: #f5f5f5;
+        }
+
+        .player-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .player {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .player.active {
+            box-shadow: 0 0 0 2px var(--primary-color);
+            background-color: rgba(93, 92, 222, 0.1);
+        }
+
+        .player-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+
+        .player-p1 {
+            background-color: #FF5F5F;
+        }
+
+        .player-p2 {
+            background-color: #5FA3FF;
+        }
+
+        .ball-group {
+            display: flex;
+            align-items: center;
+            margin-left: 10px;
+        }
+
+        .ball-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 5px;
+            border: 1px solid #333;
+        }
+
+        .solid {
+            background-color: red;
+        }
+
+        .stripe {
+            background: linear-gradient(to bottom, white 45%, blue 45%, blue 55%, white 55%);
+        }
+
+        .eight {
+            background-color: black;
+        }
+
+        .ball-rack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .racked-ball {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 0, 0, 0.3);
+        }
+
+        .message-log {
+            margin-top: 1rem;
+            padding: 0.5rem;
+            border-radius: 6px;
+            max-height: 100px;
+            overflow-y: auto;
+            transition: background-color 0.3s ease;
+        }
+
+        .dark .message-log {
+            background-color: #303030;
+        }
+
+        .light .message-log {
+            background-color: #e9e9e9;
+        }
+
+        .power-meter {
+            height: 20px;
+            margin-top: 10px;
+            border-radius: 10px;
+            background-color: #e0e0e0;
+            overflow: hidden;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .power-level {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(to right, yellow, orange, red);
+            transition: width 0.1s ease-out;
+            border-radius: 10px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            max-width: 90%;
+            width: 500px;
+            text-align: center;
+            position: relative;
+        }
+
+        .dark .modal-content {
+            background-color: #252525;
+            color: white;
+        }
+
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        #connectionInfo {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .dark #connectionInfo {
+            background-color: #252525;
+        }
+
+        .light #connectionInfo {
+            background-color: #f5f5f5;
+        }
+
+        .connection-id {
+            font-family: monospace;
+            padding: 5px 10px;
+            border-radius: 4px;
+            background-color: rgba(93, 92, 222, 0.1);
+            margin: 0 5px;
+        }
+
+        #chat {
+            width: 100%;
+            max-width: 1000px;
+            margin-top: 1rem;
+            border-radius: 10px;
+            padding: 1rem;
+            transition: background-color 0.3s ease;
+        }
+
+        .dark #chat {
+            background-color: #252525;
+        }
+
+        .light #chat {
+            background-color: #f5f5f5;
+        }
+
+        #chatMessages {
+            height: 150px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            transition: background-color 0.3s ease;
+        }
+
+        .dark #chatMessages {
+            background-color: #303030;
+        }
+
+        .light #chatMessages {
+            background-color: #e9e9e9;
+        }
+
+        .chat-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        #chatInput {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .dark #chatInput {
+            background-color: #303030;
+            color: white;
+            border-color: #444;
+        }
+
+        #chatInput:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(93, 92, 222, 0.2);
+        }
+
+        .chat-message {
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            max-width: 80%;
+            word-break: break-word;
+        }
+
+        .message-container {
+            display: flex;
+            margin-bottom: 10px;
+        }
+
+        .message-container.self {
+            justify-content: flex-end;
+        }
+
+        .message-self {
+            background-color: var(--primary-color);
+            color: white;
+            align-self: flex-end;
+        }
+
+        .message-other {
+            background-color: #e0e0e0;
+            color: black;
+            align-self: flex-start;
+        }
+
+        .dark .message-other {
+            background-color: #404040;
+            color: white;
+        }
+
+        .instructions {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        .dark .instructions {
+            background-color: #252525;
+        }
+
+        .light .instructions {
+            background-color: #f5f5f5;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+
+        .error-message {
+            color: #e53935;
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 6px;
+            background-color: rgba(229, 57, 53, 0.1);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .player-info {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .player {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 576px) {
+            #gameInfo, #connectionInfo, #chat {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body class="light">
+    <!-- Permission Request Screen -->
+    <div id="permissionScreen">
+        <div class="permission-card">
+            <div class="permission-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-4">Multiplayer 8-Ball Pool</h2>
+            <p class="mb-6">To enable multiplayer functionality, we need to establish a peer-to-peer connection. Your browser will ask for permission to use networking features.</p>
+            <p class="mb-6">This allows you to create or join games with friends without requiring a central server.</p>
+            <div id="permissionControls">
+                <button id="grantAccessBtn" class="game-button">Enable Multiplayer</button>
+                <div id="permissionStatus" class="mt-4 hidden">
+                    <p>Requesting permission... <span class="loading-spinner"></span></p>
+                </div>
+                <div id="permissionError" class="error-message hidden">
+                    <p>Couldn't initialize networking. Please try again or enable local play.</p>
+                </div>
+            </div>
+            <div class="mt-6 text-sm opacity-75">
+                <p>You can still play the game if you deny permission, but multiplayer features will be limited to local play only.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Container (Hidden initially) -->
+    <div id="gameContainer" class="mx-auto">
+        <h1 class="text-2xl font-bold mb-4">8-Ball Pool</h1>
+        
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        
+        <div id="gameInfo">
+            <div class="player-info">
+                <div id="player1" class="player">
+                    <div class="player-avatar player-p1">P1</div>
+                    <div>
+                        <div class="font-bold">Player 1</div>
+                        <div id="player1Group" class="ball-group hidden">
+                            <span>Group:</span>
+                            <div id="player1BallType" class="ball-indicator"></div>
+                        </div>
+                        <div id="player1Balls" class="ball-rack"></div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col items-center">
+                    <div id="turnIndicator" class="text-center mb-2">Waiting for players...</div>
+                    <div class="power-meter">
+                        <div id="powerLevel" class="power-level"></div>
+                    </div>
+                </div>
+                
+                <div id="player2" class="player">
+                    <div class="player-avatar player-p2">P2</div>
+                    <div>
+                        <div class="font-bold">Player 2</div>
+                        <div id="player2Group" class="ball-group hidden">
+                            <span>Group:</span>
+                            <div id="player2BallType" class="ball-indicator"></div>
+                        </div>
+                        <div id="player2Balls" class="ball-rack"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="messageLog" class="message-log">
+                <div>Welcome to 8-Ball Pool! Connect with a friend to play.</div>
+            </div>
+        </div>
+        
+        <div id="connectionInfo">
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-2">Create or Join a Game</h3>
+                <button id="createGameBtn" class="game-button mr-2">Create New Game</button>
+                <button id="joinGameBtn" class="game-button">Join Game</button>
+            </div>
+            <div id="hostInfo" class="hidden">
+                <p>Share this ID with a friend to play:</p>
+                <p class="font-bold my-2"><span id="hostId" class="connection-id"></span></p>
+                <button id="copyIdBtn" class="game-button">Copy ID</button>
+            </div>
+        </div>
+        
+        <div id="chat" class="hidden">
+            <h3 class="text-lg font-semibold mb-2">Chat</h3>
+            <div id="chatMessages"></div>
+            <div class="chat-container">
+                <input type="text" id="chatInput" placeholder="Type a message..." class="text-base">
+                <button id="sendChatBtn" class="game-button">Send</button>
+            </div>
+        </div>
+        
+        <div class="instructions mt-4">
+            <h3 class="text-lg font-semibold mb-2">How to Play</h3>
+            <ul class="list-disc pl-5">
+                <li>Create a new game or join an existing one using a friend's game ID</li>
+                <li>Break: The first player gets to break the rack</li>
+                <li>Groups: After the first ball is legally pocketed, players are assigned to solids (1-7) or stripes (9-15)</li>
+                <li>Turns: Players take turns. Your turn continues if you pocket a ball from your group</li>
+                <li>Win: Pocket all your balls and then the 8-ball to win</li>
+                <li>Fouls: Hitting opponent's ball first, pocketing the cue ball ("scratch"), or not hitting any ball</li>
+                <li>Loss: Pocketing the 8-ball before all your group's balls are pocketed, or pocketing the 8-ball and the cue ball on the same shot</li>
+            </ul>
+            <h4 class="text-md font-semibold mt-3 mb-1">Controls</h4>
+            <ul class="list-disc pl-5">
+                <li>Aim: Move your mouse around the cue ball</li>
+                <li>Power: Hold down the mouse button and pull back to set power, release to shoot</li>
+                <li>Place Cue Ball: Click where you want to place the cue ball after a scratch</li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Join Game Modal -->
+    <div id="joinGameModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="closeJoinModal">&times;</span>
+            <h2 class="text-xl font-bold mb-4">Join a Game</h2>
+            <div class="mb-4">
+                <label for="gameIdInput" class="block mb-2">Enter Game ID:</label>
+                <input type="text" id="gameIdInput" class="w-full px-3 py-2 border rounded-lg text-base text-black dark:text-white dark:bg-gray-700" placeholder="Paste game ID here">
+            </div>
+            <button id="connectBtn" class="game-button">Connect</button>
+        </div>
+    </div>
+    
+    <script>
+        // Check if the user prefers dark mode
+        function detectColorScheme() {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.body.classList.remove('light');
+                document.body.classList.add('dark');
+            } else {
+                document.body.classList.remove('dark');
+                document.body.classList.add('light');
+            }
+        }
+        
+        // Call once to set initial theme
+        detectColorScheme();
+        
+        // Listen for changes in color scheme preference
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', detectColorScheme);
+        
+        // Permission screen elements
+        const permissionScreen = document.getElementById('permissionScreen');
+        const grantAccessBtn = document.getElementById('grantAccessBtn');
+        const permissionStatus = document.getElementById('permissionStatus');
+        const permissionError = document.getElementById('permissionError');
+        const gameContainer = document.getElementById('gameContainer');
+        
+        // Handle permission request
+        grantAccessBtn.addEventListener('click', function() {
+            // Show loading spinner
+            grantAccessBtn.disabled = true;
+            permissionStatus.classList.remove('hidden');
+            permissionError.classList.add('hidden');
+            
+            // Initialize PeerJS to trigger the permission prompt
+            requestNetworkPermission();
+        });
+        
+        // Function to request network permission
+        function requestNetworkPermission() {
+            try {
+                // Initialize a temporary PeerJS instance to trigger permission request
+                const tempPeer = new Peer({
+                    debug: 0, // Minimal logging
+                    config: {
+                        'iceServers': [
+                            { urls: 'stun:stun.l.google.com:19302' }
+                        ]
+                    }
+                });
+                
+                // Handle successful permission grant
+                tempPeer.on('open', (id) => {
+                    console.log("Network permission granted");
+                    // Destroy the temporary peer
+                    tempPeer.destroy();
+                    // Show the game
+                    showGame();
+                });
+                
+                // Handle permission errors
+                tempPeer.on('error', (err) => {
+                    console.error("Permission error:", err);
+                    handlePermissionError();
+                });
+                
+                // Set a timeout for the permission request
+                setTimeout(() => {
+                    // If we haven't gotten a response after 15 seconds, show an error
+                    if (permissionScreen.style.display !== 'none') {
+                        handlePermissionError();
+                    }
+                }, 15000);
+                
+            } catch (err) {
+                console.error("Error initializing permission request:", err);
+                handlePermissionError();
+            }
+        }
+        
+        // Handle permission errors
+        function handlePermissionError() {
+            grantAccessBtn.disabled = false;
+            permissionStatus.classList.add('hidden');
+            permissionError.classList.remove('hidden');
+        }
+        
+        // Show the game after permission is granted
+        function showGame() {
+            permissionScreen.style.display = 'none';
+            gameContainer.style.display = 'flex';
+            
+            // Initialize the game
+            initializeGame();
+        }
+        
+        // Game constants and variables
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Create a variable to hold the game instance
+        let game = null;
+        
+        // Function to initialize the game after permission is granted
+        function initializeGame() {
+            // Responsive canvas sizing
+            function resizeCanvas() {
+                const container = document.getElementById('gameContainer');
+                const maxWidth = Math.min(container.clientWidth - 20, 1000); // 10px padding on each side, increased max width to 1000px
+                const aspectRatio = 2; // Standard pool table is roughly 2:1
+                
+                canvas.width = maxWidth;
+                canvas.height = maxWidth / aspectRatio;
+                
+                // Redraw everything when resized
+                if (game) {
+                    game.draw();
+                }
+            }
+            
+            // Initial resize and add event listener for window resizing
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Initialize the game
+            game = new PoolGame(canvas);
+        }
+        
+        // Game class to handle the pool game logic
+        class PoolGame {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.width = canvas.width;
+                this.height = canvas.height;
+                
+                // Table dimensions
+                this.tablePadding = 40; // Reduced padding around the table for a smaller border
+                this.pocketRadius = Math.min(this.width, this.height) * 0.04;
+                this.tableWidth = this.width - (this.tablePadding * 2);
+                this.tableHeight = this.height - (this.tablePadding * 2);
+                this.cushionWidth = Math.min(this.width, this.height) * 0.025; // Thinner cushion for aesthetics
+                
+                // Ball properties
+                this.ballRadius = Math.min(this.width, this.height) * 0.02;
+                this.balls = [];
+                this.cueBall = null;
+                
+                // Game state
+                this.isBreakShot = true;
+                this.isGameOver = false;
+                this.winner = null;
+                this.currentPlayer = 1; // Player 1 starts
+                this.player1BallType = null; // 'solid' or 'stripe'
+                this.player2BallType = null;
+                this.ballsMoving = false;
+                this.placingCueBall = false;
+                this.lastPocketedBall = null;
+                this.foul = false;
+                this.ballInHand = false;
+                
+                // Cue stick properties
+                this.cueVisible = false;
+                this.cueAngle = 0;
+                this.cuePower = 0;
+                this.maxCuePower = 20;
+                this.cueLength = Math.min(this.width, this.height) * 0.3;
+                this.chargingShot = false;
+                
+                // Mouse position
+                this.mouseX = 0;
+                this.mouseY = 0;
+                
+                // Player scores and ball assignments
+                this.player1Balls = []; // Balls pocketed by player 1
+                this.player2Balls = []; // Balls pocketed by player 2
+                this.remainingSolids = [1, 2, 3, 4, 5, 6, 7];
+                this.remainingStripes = [9, 10, 11, 12, 13, 14, 15];
+                this.eightBallPocketed = false;
+                
+                // Networking
+                this.peer = null;
+                this.connection = null;
+                this.isHost = false;
+                this.otherPlayerConnected = false;
+                this.isMyTurn = false;
+                this.myPlayerNumber = null;
+                this.peerReady = true; // Already granted by permission screen
+                
+                // Initialize ball rack
+                this.createBalls();
+                this.setupPockets();
+                
+                // Set up event listeners
+                this.setupEventListeners();
+                
+                // For animation
+                this.lastFrameTime = 0;
+                this.running = true;
+                this.animate(0);
+                
+                // Game log messages
+                this.messageLog = document.getElementById('messageLog');
+                this.logMessage('Welcome to 8-Ball Pool! Create or join a game to begin.');
+                
+                // Update UI
+                this.updateGameInfo();
+            }
+            
+            // Initialize the balls
+            createBalls() {
+                // Create the cue ball
+                this.cueBall = {
+                    x: this.width / 4,
+                    y: this.height / 2,
+                    radius: this.ballRadius,
+                    dx: 0,
+                    dy: 0,
+                    mass: 1,
+                    number: 0,
+                    color: '#FFFFFF',
+                    inPocket: false,
+                    isStripe: false
+                };
+                
+                // Ball colors
+                const ballColors = {
+                    1: '#FDD835', // Yellow
+                    2: '#1E88E5', // Blue
+                    3: '#E53935', // Red
+                    4: '#8E24AA', // Purple
+                    5: '#FF8F00', // Orange
+                    6: '#2E7D32', // Green
+                    7: '#6D4C41', // Brown
+                    8: '#000000', // Black
+                    9: '#FDD835', // Yellow
+                    10: '#1E88E5', // Blue
+                    11: '#E53935', // Red
+                    12: '#8E24AA', // Purple
+                    13: '#FF8F00', // Orange
+                    14: '#2E7D32', // Green
+                    15: '#6D4C41'  // Brown
+                };
+                
+                // Create all other balls
+                this.balls = [];
+                
+                // Set up the rack in a triangle formation
+                const startX = this.width * 0.75;
+                const startY = this.height / 2;
+                const ballDiameter = this.ballRadius * 2;
+                const rowSpacing = Math.sqrt(3) * ballDiameter;
+                const colSpacing = ballDiameter + 1; // Small gap to prevent overlap
+                
+                // Define positions for a standard 15-ball rack
+                const rackPositions = [
+                    // First row (one ball)
+                    { row: 0, col: 0, number: 1 },
+                    // Second row (two balls)
+                    { row: 1, col: 0, number: 2 },
+                    { row: 1, col: 1, number: 3 },
+                    // Third row (three balls)
+                    { row: 2, col: 0, number: 4 },
+                    { row: 2, col: 1, number: 8 }, // 8-ball goes in the middle
+                    { row: 2, col: 2, number: 5 },
+                    // Fourth row (four balls)
+                    { row: 3, col: 0, number: 6 },
+                    { row: 3, col: 1, number: 9 },
+                    { row: 3, col: 2, number: 10 },
+                    { row: 3, col: 3, number: 7 },
+                    // Fifth row (five balls)
+                    { row: 4, col: 0, number: 11 },
+                    { row: 4, col: 1, number: 12 },
+                    { row: 4, col: 2, number: 13 },
+                    { row: 4, col: 3, number: 14 },
+                    { row: 4, col: 4, number: 15 }
+                ];
+                
+                // Create balls based on the rack positions
+                rackPositions.forEach(pos => {
+                    const x = startX + (pos.row * rowSpacing / 2);
+                    const y = startY - (pos.row * colSpacing / 2) + (pos.col * colSpacing);
+                    
+                    const isStripe = pos.number >= 9 && pos.number !== 8;
+                    
+                    this.balls.push({
+                        x,
+                        y,
+                        radius: this.ballRadius,
+                        dx: 0,
+                        dy: 0,
+                        mass: 1,
+                        number: pos.number,
+                        color: ballColors[pos.number],
+                        inPocket: false,
+                        isStripe
+                    });
+                });
+            }
+            
+            // Set up table pockets
+            setupPockets() {
+                // Position pockets at the edge of the felt (green area), not deep in the cushion
+                const feltEdgeX = this.tablePadding + this.cushionWidth;
+                const feltEdgeY = this.tablePadding + this.cushionWidth;
+                const feltEndX = this.width - this.tablePadding - this.cushionWidth;
+                const feltEndY = this.height - this.tablePadding - this.cushionWidth;
+                
+                this.pockets = [
+                    // Top-left pocket (moved closer to the felt)
+                    { x: feltEdgeX, y: feltEdgeY },
+                    // Top-middle pocket
+                    { x: this.width / 2, y: feltEdgeY },
+                    // Top-right pocket
+                    { x: feltEndX, y: feltEdgeY },
+                    // Bottom-left pocket
+                    { x: feltEdgeX, y: feltEndY },
+                    // Bottom-middle pocket
+                    { x: this.width / 2, y: feltEndY },
+                    // Bottom-right pocket
+                    { x: feltEndX, y: feltEndY }
+                ];
+            }
+            
+            // Set up event listeners for user interaction
+            setupEventListeners() {
+                this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+                this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+                this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+                this.canvas.addEventListener('click', this.handleClick.bind(this));
+                
+                // Set up buttons
+                document.getElementById('createGameBtn').addEventListener('click', this.createGame.bind(this));
+                document.getElementById('joinGameBtn').addEventListener('click', this.showJoinGameModal.bind(this));
+                document.getElementById('connectBtn').addEventListener('click', this.joinGame.bind(this));
+                document.getElementById('closeJoinModal').addEventListener('click', this.hideJoinGameModal.bind(this));
+                document.getElementById('copyIdBtn').addEventListener('click', this.copyGameId.bind(this));
+                document.getElementById('sendChatBtn').addEventListener('click', this.sendChatMessage.bind(this));
+                document.getElementById('chatInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.sendChatMessage();
+                    }
+                });
+            }
+            
+            // Handle mouse movement
+            handleMouseMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                this.mouseX = e.clientX - rect.left;
+                this.mouseY = e.clientY - rect.top;
+                
+                if (!this.ballsMoving && this.isMyTurn && !this.placingCueBall) {
+                    // Calculate angle for cue stick
+                    const dx = this.mouseX - this.cueBall.x;
+                    const dy = this.mouseY - this.cueBall.y;
+                    this.cueAngle = Math.atan2(dy, dx);
+                    this.cueVisible = true;
+                }
+                
+                if (this.chargingShot) {
+                    // Calculate power based on distance from cue ball
+                    const dx = this.mouseX - this.cueBall.x;
+                    const dy = this.mouseY - this.cueBall.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Limit the maximum power
+                    this.cuePower = Math.min(distance / 10, this.maxCuePower);
+                    
+                    // Update power meter UI
+                    const powerPercent = (this.cuePower / this.maxCuePower) * 100;
+                    document.getElementById('powerLevel').style.width = `${powerPercent}%`;
+                }
+            }
+            
+            // Handle mouse button down
+            handleMouseDown(e) {
+                if (e.button === 0 && !this.ballsMoving && this.isMyTurn && !this.placingCueBall) {
+                    this.chargingShot = true;
+                }
+            }
+            
+            // Handle mouse button up
+            handleMouseUp(e) {
+                if (e.button === 0 && this.chargingShot) {
+                    this.chargingShot = false;
+                    this.cueVisible = false;
+                    
+                    // Apply force to the cue ball (with increased power multiplier)
+                    if (this.cuePower > 0 && this.isMyTurn) {
+                        const angleOpposite = this.cueAngle + Math.PI;
+                        const powerMultiplier = 75.0; // Greatly increased force (5x more than before) for more powerful shots
+                        this.cueBall.dx = Math.cos(angleOpposite) * this.cuePower * powerMultiplier;
+                        this.cueBall.dy = Math.sin(angleOpposite) * this.cuePower * powerMultiplier;
+                        
+                        // Reset power meter UI
+                        document.getElementById('powerLevel').style.width = '0%';
+                        
+                        // Set state and begin physics simulation
+                        this.ballsMoving = true;
+                        this.firstCollision = null; // Reset first collision for new shot
+                        
+                        // Send the shot data to the other player
+                        if (this.connection) {
+                            this.connection.send({
+                                type: 'shot',
+                                angle: angleOpposite,
+                                power: this.cuePower
+                            });
+                        }
+                    }
+                    
+                    this.cuePower = 0;
+                }
+            }
+            
+            // Handle mouse click
+            handleClick(e) {
+                if (this.placingCueBall && this.isMyTurn) {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    
+                    // Check if position is valid (on the table and not in a restricted area)
+                    if (this.isValidCueBallPlacement(x, y)) {
+                        this.cueBall.x = x;
+                        this.cueBall.y = y;
+                        this.placingCueBall = false;
+                        this.cueBall.inPocket = false;
+                        
+                        // Send the cue ball placement to the other player
+                        if (this.connection) {
+                            this.connection.send({
+                                type: 'cueBallPlacement',
+                                x: x,
+                                y: y
+                            });
+                        }
+                        
+                        this.logMessage('Cue ball placed. Your turn.');
+                    } else {
+                        if (this.isBreakShot) {
+                            this.logMessage('Invalid position. The cue ball must be placed in the kitchen (left quarter of the table).');
+                        } else {
+                            this.logMessage('Invalid position. The cue ball must be placed on the table and not overlap with other balls.');
+                        }
+                    }
+                }
+            }
+            
+            // Check if a cue ball placement position is valid
+            isValidCueBallPlacement(x, y) {
+                // The ball must be on the table (within the playing surface)
+                if (x - this.ballRadius < this.tablePadding + this.cushionWidth || 
+                    x + this.ballRadius > this.width - this.tablePadding - this.cushionWidth ||
+                    y - this.ballRadius < this.tablePadding + this.cushionWidth || 
+                    y + this.ballRadius > this.height - this.tablePadding - this.cushionWidth) {
+                    return false;
+                }
+                
+                // For the break shot, cue ball must be in the kitchen (left quarter of the table)
+                if (this.isBreakShot) {
+                    const kitchenLine = this.width * 0.25;
+                    if (x > kitchenLine) {
+                        return false;
+                    }
+                }
+                // For ball-in-hand after a foul, the cue ball can be placed anywhere on the table
+                // No additional restrictions for regular ball-in-hand
+                
+                // Check for collision with other balls (can't place cue ball overlapping another ball)
+                for (const ball of this.balls) {
+                    if (!ball.inPocket) {
+                        const dx = ball.x - x;
+                        const dy = ball.y - y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        if (distance < this.ballRadius * 2) {
+                            return false;
+                        }
+                    }
+                }
+                
+                return true;
+            }
+            
+            // Animation loop
+            animate(currentTime) {
+                if (!this.running) return;
+                
+                // Calculate time since the last frame
+                const deltaTime = (currentTime - this.lastFrameTime) / 1000;
+                this.lastFrameTime = currentTime;
+                
+                // Update game state
+                if (this.ballsMoving) {
+                    this.update(deltaTime);
+                }
+                
+                // Draw the game
+                this.draw();
+                
+                // Continue the animation loop
+                requestAnimationFrame(this.animate.bind(this));
+            }
+            
+            // Update game physics
+            update(deltaTime) {
+                // Cap deltaTime to avoid large jumps
+                const dt = Math.min(deltaTime, 1 / 30);
+                
+                // Update balls
+                this.updateBalls(dt);
+                
+                // Check for pocketed balls
+                this.checkPockets();
+                
+                // Check if all balls have stopped moving
+                if (this.areBallsStopped()) {
+                    this.ballsMoving = false;
+                    this.handleTurnEnd();
+                }
+            }
+            
+            // Update all ball positions and velocities
+            updateBalls(dt) {
+                // Update cue ball
+                if (!this.cueBall.inPocket) {
+                    this.updateBallPosition(this.cueBall, dt);
+                    this.checkBallCollision(this.cueBall);
+                    this.checkCushionCollision(this.cueBall);
+                }
+                
+                // Update other balls
+                for (const ball of this.balls) {
+                    if (!ball.inPocket) {
+                        this.updateBallPosition(ball, dt);
+                        this.checkBallCollision(ball);
+                        this.checkCushionCollision(ball);
+                    }
+                }
+            }
+            
+            // Update a single ball's position based on its velocity
+            updateBallPosition(ball, dt) {
+                ball.x += ball.dx * dt;
+                ball.y += ball.dy * dt;
+                
+                // Apply friction to slow the ball down
+                const friction = 1.5; // Friction coefficient
+                const slowdown = Math.pow(0.98, dt * 60); // Exponential slowdown
+                
+                ball.dx *= slowdown;
+                ball.dy *= slowdown;
+                
+                // Stop the ball if it's moving very slowly
+                if (Math.abs(ball.dx) < 0.1 && Math.abs(ball.dy) < 0.1) {
+                    ball.dx = 0;
+                    ball.dy = 0;
+                }
+            }
+            
+            // Check if a ball collides with the table cushions
+            checkCushionCollision(ball) {
+                const topCushion = this.tablePadding + this.cushionWidth;
+                const bottomCushion = this.height - this.tablePadding - this.cushionWidth;
+                const leftCushion = this.tablePadding + this.cushionWidth;
+                const rightCushion = this.width - this.tablePadding - this.cushionWidth;
+                
+                // Check for collision with the top cushion
+                if (ball.y - ball.radius < topCushion) {
+                    ball.y = topCushion + ball.radius;
+                    ball.dy = -ball.dy * 0.9; // 10% energy loss
+                }
+                
+                // Check for collision with the bottom cushion
+                if (ball.y + ball.radius > bottomCushion) {
+                    ball.y = bottomCushion - ball.radius;
+                    ball.dy = -ball.dy * 0.9;
+                }
+                
+                // Check for collision with the left cushion
+                if (ball.x - ball.radius < leftCushion) {
+                    ball.x = leftCushion + ball.radius;
+                    ball.dx = -ball.dx * 0.9;
+                }
+                
+                // Check for collision with the right cushion
+                if (ball.x + ball.radius > rightCushion) {
+                    ball.x = rightCushion - ball.radius;
+                    ball.dx = -ball.dx * 0.9;
+                }
+            }
+            
+            // Check for collision between a ball and all other balls
+            checkBallCollision(ball) {
+                // Check collision with the cue ball
+                if (ball !== this.cueBall && !this.cueBall.inPocket) {
+                    this.checkCollisionBetweenBalls(ball, this.cueBall);
+                }
+                
+                // Check collision with other balls
+                for (const otherBall of this.balls) {
+                    if (ball !== otherBall && !otherBall.inPocket) {
+                        this.checkCollisionBetweenBalls(ball, otherBall);
+                    }
+                }
+            }
+            
+            // Check for collision between two specific balls
+            checkCollisionBetweenBalls(ball1, ball2) {
+                const dx = ball2.x - ball1.x;
+                const dy = ball2.y - ball1.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Check if the balls are close enough to collide
+                if (distance < ball1.radius + ball2.radius) {
+                    // Track the first ball hit by the cue ball (essential for foul detection)
+                    if ((ball1 === this.cueBall || ball2 === this.cueBall) && this.firstCollision === null) {
+                        // Set whichever ball is not the cue ball as the first collision
+                        this.firstCollision = ball1 === this.cueBall ? ball2 : ball1;
+                        console.log(`First collision with ball ${this.firstCollision.number}`);
+                    }
+                    
+                    // Calculate collision normal
+                    const nx = dx / distance;
+                    const ny = dy / distance;
+                    
+                    // Calculate relative velocity
+                    const vx = ball1.dx - ball2.dx;
+                    const vy = ball1.dy - ball2.dy;
+                    
+                    // Calculate relative speed along the normal
+                    const speed = vx * nx + vy * ny;
+                    
+                    // If the balls are moving away from each other, no collision
+                    if (speed < 0) return;
+                    
+                    // Calculate impulse
+                    const impulse = 2 * speed / (ball1.mass + ball2.mass);
+                    
+                    // Apply impulse to the balls
+                    ball1.dx -= impulse * ball2.mass * nx;
+                    ball1.dy -= impulse * ball2.mass * ny;
+                    ball2.dx += impulse * ball1.mass * nx;
+                    ball2.dy += impulse * ball1.mass * ny;
+                    
+                    // Move balls apart to prevent sticking
+                    const overlap = ball1.radius + ball2.radius - distance;
+                    const correctionX = nx * overlap * 0.5;
+                    const correctionY = ny * overlap * 0.5;
+                    
+                    ball1.x -= correctionX;
+                    ball1.y -= correctionY;
+                    ball2.x += correctionX;
+                    ball2.y += correctionY;
+                }
+            }
+            
+            // Check if a ball has been pocketed
+            checkPockets() {
+                // Check if cue ball is pocketed
+                for (const pocket of this.pockets) {
+                    const dx = pocket.x - this.cueBall.x;
+                    const dy = pocket.y - this.cueBall.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < this.pocketRadius && !this.cueBall.inPocket) {
+                        this.cueBall.inPocket = true;
+                        this.cueBall.dx = 0;
+                        this.cueBall.dy = 0;
+                        this.foul = true;
+                        this.logMessage('Scratch! The cue ball has been pocketed.');
+                        break;
+                    }
+                }
+                
+                // Check if other balls are pocketed
+                for (const ball of this.balls) {
+                    if (!ball.inPocket) {
+                        for (const pocket of this.pockets) {
+                            const dx = pocket.x - ball.x;
+                            const dy = pocket.y - ball.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            
+                            if (distance < this.pocketRadius) {
+                                ball.inPocket = true;
+                                ball.dx = 0;
+                                ball.dy = 0;
+                                this.lastPocketedBall = ball;
+                                
+                                // Handle 8-ball pocketing
+                                if (ball.number === 8) {
+                                    this.eightBallPocketed = true;
+                                    this.logMessage('The 8-ball has been pocketed!');
+                                } else {
+                                    this.logMessage(`Ball ${ball.number} has been pocketed.`);
+                                    
+                                    // Assign ball groups if they haven't been assigned yet and log a message
+                                    if (this.player1BallType === null && this.player2BallType === null) {
+                                        this.assignBallGroups(ball);
+                                        // Make sure to note that the player gets to continue after pocketing the first ball
+                                        this.logMessage(`Player ${this.currentPlayer} has been assigned ${ball.isStripe ? 'stripes' : 'solids'} and continues their turn.`);
+                                    }
+                                    
+                                    // Add the ball to the appropriate player's list
+                                    this.assignPocketedBall(ball);
+                                }
+                                
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Assign ball groups to players after the first ball is pocketed
+            assignBallGroups(ball) {
+                if (this.currentPlayer === 1) {
+                    this.player1BallType = ball.isStripe ? 'stripe' : 'solid';
+                    this.player2BallType = ball.isStripe ? 'solid' : 'stripe';
+                } else {
+                    this.player2BallType = ball.isStripe ? 'stripe' : 'solid';
+                    this.player1BallType = ball.isStripe ? 'solid' : 'stripe';
+                }
+                
+                // Show the ball type indicators
+                document.getElementById('player1Group').classList.remove('hidden');
+                document.getElementById('player2Group').classList.remove('hidden');
+                
+                // Update the ball type indicators
+                const player1Indicator = document.getElementById('player1BallType');
+                const player2Indicator = document.getElementById('player2BallType');
+                
+                player1Indicator.className = 'ball-indicator';
+                player2Indicator.className = 'ball-indicator';
+                
+                if (this.player1BallType === 'solid') {
+                    player1Indicator.classList.add('solid');
+                    player2Indicator.classList.add('stripe');
+                } else {
+                    player1Indicator.classList.add('stripe');
+                    player2Indicator.classList.add('solid');
+                }
+                
+                // Send ball assignment to other player
+                if (this.connection) {
+                    this.connection.send({
+                        type: 'ballAssignment',
+                        player1Type: this.player1BallType,
+                        player2Type: this.player2BallType
+                    });
+                }
+            }
+            
+            // Add a pocketed ball to the appropriate player's list
+            assignPocketedBall(ball) {
+                if (ball.number === 8) return; // Don't assign the 8-ball
+                
+                if (ball.isStripe) {
+                    // Remove from remaining stripes
+                    const index = this.remainingStripes.indexOf(ball.number);
+                    if (index !== -1) {
+                        this.remainingStripes.splice(index, 1);
+                    }
+                    
+                    // Add to the appropriate player's list
+                    if (this.player1BallType === 'stripe') {
+                        this.player1Balls.push(ball);
+                    } else {
+                        this.player2Balls.push(ball);
+                    }
+                } else {
+                    // Remove from remaining solids
+                    const index = this.remainingSolids.indexOf(ball.number);
+                    if (index !== -1) {
+                        this.remainingSolids.splice(index, 1);
+                    }
+                    
+                    // Add to the appropriate player's list
+                    if (this.player1BallType === 'solid') {
+                        this.player1Balls.push(ball);
+                    } else {
+                        this.player2Balls.push(ball);
+                    }
+                }
+                
+                // Update the UI to show pocketed balls
+                this.updateBallRacks();
+            }
+            
+            // Update the ball racks in the UI
+            updateBallRacks() {
+                const player1Rack = document.getElementById('player1Balls');
+                const player2Rack = document.getElementById('player2Balls');
+                
+                // Clear the racks
+                player1Rack.innerHTML = '';
+                player2Rack.innerHTML = '';
+                
+                // Add Player 1's balls
+                for (const ball of this.player1Balls) {
+                    const ballElement = document.createElement('div');
+                    ballElement.className = 'racked-ball';
+                    ballElement.style.backgroundColor = ball.color;
+                    
+                    if (ball.isStripe) {
+                        ballElement.style.background = `linear-gradient(to bottom, white 45%, ${ball.color} 45%, ${ball.color} 55%, white 55%)`;
+                    }
+                    
+                    player1Rack.appendChild(ballElement);
+                }
+                
+                // Add Player 2's balls
+                for (const ball of this.player2Balls) {
+                    const ballElement = document.createElement('div');
+                    ballElement.className = 'racked-ball';
+                    ballElement.style.backgroundColor = ball.color;
+                    
+                    if (ball.isStripe) {
+                        ballElement.style.background = `linear-gradient(to bottom, white 45%, ${ball.color} 45%, ${ball.color} 55%, white 55%)`;
+                    }
+                    
+                    player2Rack.appendChild(ballElement);
+                }
+            }
+            
+            // Check if all balls have stopped moving
+            areBallsStopped() {
+                if (!this.cueBall.inPocket && (Math.abs(this.cueBall.dx) > 0.1 || Math.abs(this.cueBall.dy) > 0.1)) {
+                    return false;
+                }
+                
+                for (const ball of this.balls) {
+                    if (!ball.inPocket && (Math.abs(ball.dx) > 0.1 || Math.abs(ball.dy) > 0.1)) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            }
+            
+            // Handle the end of a turn
+            handleTurnEnd() {
+                console.log("Turn ended. Current player:", this.currentPlayer, "My player number:", this.myPlayerNumber);
+                console.log("First collision:", this.firstCollision ? this.firstCollision.number : "none");
+                console.log("Last pocketed ball:", this.lastPocketedBall ? this.lastPocketedBall.number : "none");
+
+                // Check for game end conditions
+                if (this.eightBallPocketed) {
+                    this.handleEightBallPocketed();
+                    return;
+                }
+                
+                // Determine if players need to switch and if there was a foul
+                let switchPlayers = true;
+                let hadFoul = false;
+                let foulMessage = "";
+                
+                // Get the player who would get the next turn if there's a switch
+                const nextPlayer = this.currentPlayer === 1 ? 2 : 1;
+                
+                // Check if the table is "open" (no groups assigned yet)
+                const isTableOpen = this.player1BallType === null;
+                console.log("Is table open:", isTableOpen);
+                
+                // Check for foul conditions
+                
+                // 1. If the cue ball was pocketed (scratch)
+                if (this.cueBall.inPocket) {
+                    hadFoul = true;
+                    foulMessage = `Foul: Cue ball pocketed. Player ${nextPlayer} has ball in hand.`;
+                    console.log("Cue ball scratch detected");
+                }
+                
+                // 2. If no ball was hit (miss)
+                else if (this.firstCollision === null && !this.isBreakShot) {
+                    hadFoul = true;
+                    foulMessage = `Foul: No ball was hit. Player ${nextPlayer} has ball in hand.`;
+                    console.log("No ball hit detected");
+                }
+                
+                // 3. If wrong ball type was hit first - only applies when groups are assigned
+                else if (this.firstCollision !== null && !isTableOpen && !this.isBreakShot) {
+                    // Determine which ball type the current player should hit
+                    const currentPlayerBallType = this.currentPlayer === 1 ? this.player1BallType : this.player2BallType;
+                    const shouldHitStripe = currentPlayerBallType === 'stripe';
+                    const shouldHitSolid = currentPlayerBallType === 'solid';
+                    
+                    // Check if player has cleared their group (all balls pocketed)
+                    // If so, they should be hitting the 8-ball
+                    const playerBalls = this.currentPlayer === 1 ? this.player1Balls : this.player2Balls;
+                    const shouldHit8Ball = (shouldHitStripe && this.remainingStripes.length === 0) || 
+                                          (shouldHitSolid && this.remainingSolids.length === 0);
+                    
+                    // Get the correct name for the ball type for error messages
+                    const expectedBallType = shouldHitStripe ? "stripe" : "solid";
+                    const wrongBallType = shouldHitStripe ? "solid" : "stripe";
+                    
+                    // Check for wrong ball fouls
+                    if (shouldHit8Ball && this.firstCollision.number !== 8) {
+                        hadFoul = true;
+                        foulMessage = `Foul: Player ${this.currentPlayer} should hit the 8-ball first. Player ${nextPlayer} has ball in hand.`;
+                        console.log("Wrong ball hit - should have hit 8-ball");
+                    } 
+                    // If they hit 8-ball first when they shouldn't
+                    else if (!shouldHit8Ball && this.firstCollision.number === 8) {
+                        hadFoul = true;
+                        foulMessage = `Foul: Player ${this.currentPlayer} hit the 8-ball first. Player ${nextPlayer} has ball in hand.`;
+                        console.log("Wrong ball hit - hit 8-ball too early");
+                    }
+                    // If they hit opponent's ball type first
+                    else if ((shouldHitStripe && !this.firstCollision.isStripe && this.firstCollision.number !== 8) || 
+                             (shouldHitSolid && this.firstCollision.isStripe)) {
+                        hadFoul = true;
+                        foulMessage = `Foul: Player ${this.currentPlayer} hit ${wrongBallType} ball #${this.firstCollision.number} first instead of a ${expectedBallType}. Player ${nextPlayer} has ball in hand.`;
+                        console.log(`Wrong ball hit - hit ${wrongBallType} instead of ${expectedBallType}`);
+                    }
+                }
+                // Handle open table fouls
+                else if (isTableOpen && !this.isBreakShot) {
+                    console.log("Table is open, checking for fouls");
+                    
+                    // Foul 1: No ball was hit on an open table
+                    if (this.firstCollision === null) {
+                        hadFoul = true;
+                        foulMessage = `Foul: No ball was hit. Player ${nextPlayer} has ball in hand.`;
+                        console.log("Foul - no ball hit during open table");
+                    }
+                    // Foul 2: 8-ball was hit first on an open table
+                    else if (this.firstCollision.number === 8) {
+                        console.log("Hit 8-ball first on open table - checking if legal");
+                        // Hitting the 8-ball first is only legal if it's the only ball left
+                        const nonEightBallsRemaining = this.balls.some(ball => 
+                            !ball.inPocket && ball.number !== 8);
+                        
+                        if (nonEightBallsRemaining) {
+                            hadFoul = true;
+                            foulMessage = `Foul: Cannot hit the 8-ball first when the table is open. Player ${nextPlayer} has ball in hand.`;
+                            console.log("Foul - hit 8-ball first when other balls remain");
+                        }
+                    }
+                    else {
+                        console.log(`Legal hit on ball #${this.firstCollision.number} during open table`);
+                    }
+                }
+                
+                // Determine if the player continues (if they pocketed a ball and no foul occurred)
+                if (this.lastPocketedBall !== null && !hadFoul) {
+                    // If the 8-ball was pocketed, this has special handling already via eightBallPocketed
+                    if (this.lastPocketedBall.number !== 8) {
+                        if (isTableOpen) {
+                            // On an open table, if a player pockets any ball, they get assigned that type AND continue
+                            switchPlayers = false;
+                            this.logMessage(`Player ${this.currentPlayer} pocketed ball #${this.lastPocketedBall.number} and gets another turn.`);
+                            console.log("Player continues turn after pocketing a ball on open table");
+                        } else {
+                            // Check if the pocketed ball belongs to the current player
+                            const isCurrentPlayerBall = 
+                                (this.currentPlayer === 1 && 
+                                ((this.player1BallType === 'solid' && !this.lastPocketedBall.isStripe) || 
+                                (this.player1BallType === 'stripe' && this.lastPocketedBall.isStripe))) ||
+                                (this.currentPlayer === 2 && 
+                                ((this.player2BallType === 'solid' && !this.lastPocketedBall.isStripe) || 
+                                (this.player2BallType === 'stripe' && this.lastPocketedBall.isStripe)));
+                            
+                            if (isCurrentPlayerBall) {
+                                // If they pocketed their own group's ball, they continue
+                                switchPlayers = false;
+                                this.logMessage(`Player ${this.currentPlayer} pocketed their ball #${this.lastPocketedBall.number} and gets another turn.`);
+                                console.log("Player continues turn after pocketing their ball");
+                            } else {
+                                // If they pocketed opponent's ball, turn still ends
+                                this.logMessage(`Player ${this.currentPlayer} pocketed opponent's ball #${this.lastPocketedBall.number}.`);
+                                console.log("Player pocketed opponent's ball - turn ends");
+                            }
+                        }
+                    }
+                }
+                
+                // After break, if no ball is pocketed, switch players
+                if (this.isBreakShot && this.lastPocketedBall === null) {
+                    switchPlayers = true;
+                    console.log("Switching after break shot with no pocketed ball");
+                }
+                
+                // The break shot is over
+                if (this.isBreakShot) {
+                    this.isBreakShot = false;
+                }
+                
+                // Reset for next turn
+                this.lastPocketedBall = null;
+                this.foul = hadFoul;
+                
+                // If there was a foul, log the message and set ball in hand = true
+                if (hadFoul) {
+                    this.logMessage(foulMessage);
+                    this.ballInHand = true;
+                    console.log("Foul occurred, ball in hand set to true");
+                    
+                    // Switch players after a foul
+                    this.currentPlayer = nextPlayer;
+                    this.isMyTurn = (this.myPlayerNumber === this.currentPlayer);
+                    
+                    // Handle cue ball placement
+                    if (this.cueBall.inPocket) {
+                        this.cueBall.x = this.width / 2;
+                        this.cueBall.y = this.height / 2;
+                        this.cueBall.inPocket = false;
+                        this.cueBall.dx = 0;
+                        this.cueBall.dy = 0;
+                    }
+                    
+                    // Only set placingCueBall true for the player whose turn it is now
+                    this.placingCueBall = this.isMyTurn;
+                    
+                    if (this.myPlayerNumber === this.currentPlayer) {
+                        this.logMessage('Ball in hand. Click to place the cue ball anywhere on the table.');
+                    }
+                } 
+                // If player switches, do not set ball-in-hand
+                else if (switchPlayers) {
+                    // Update current player
+                    this.currentPlayer = nextPlayer;
+                    this.isMyTurn = (this.myPlayerNumber === this.currentPlayer);
+                    this.ballInHand = false;
+                    this.placingCueBall = false;
+                    
+                    // Log the turn change
+                    if (this.myPlayerNumber === this.currentPlayer) {
+                        this.logMessage(`Your turn.`);
+                    } else {
+                        this.logMessage(`Player ${this.currentPlayer}'s turn.`);
+                    }
+                } 
+                // If player continues (no foul, no switch), just reset firstCollision
+                else {
+                    this.ballInHand = false;
+                    this.placingCueBall = false;
+                    
+                    if (this.myPlayerNumber === this.currentPlayer) {
+                        this.logMessage(`Your turn continues.`);
+                    } else {
+                        this.logMessage(`Player ${this.currentPlayer} continues.`);
+                    }
+                }
+                
+                this.firstCollision = null; // Reset for next shot
+                
+                // Update turn indicator
+                this.updateTurnIndicator();
+                
+                // Update game info and send game state to opponent
+                this.updateGameInfo();
+                
+                console.log("End of turn processing. Current player:", this.currentPlayer, 
+                          "Placing cue ball:", this.placingCueBall, 
+                          "Ball in hand:", this.ballInHand);
+                
+                this.sendGameState();
+            }
+            
+            // Handle the 8-ball being pocketed
+            handleEightBallPocketed() {
+                // Check if the player has cleared their group
+                const currentPlayerBallType = this.currentPlayer === 1 ? this.player1BallType : this.player2BallType;
+                const playerHasClearedGroup = 
+                    (currentPlayerBallType === 'solid' && this.remainingSolids.length === 0) || 
+                    (currentPlayerBallType === 'stripe' && this.remainingStripes.length === 0);
+                
+                // Check if the first ball hit was the 8-ball (required for a legal 8-ball shot)
+                const hitEightBallFirst = this.firstCollision && this.firstCollision.number === 8;
+                
+                // Win condition: Player has cleared their group, hit 8-ball first, and didn't scratch
+                if (playerHasClearedGroup && hitEightBallFirst && !this.cueBall.inPocket) {
+                    this.winner = this.currentPlayer;
+                    this.logMessage(`Player ${this.currentPlayer} wins by legally pocketing the 8-ball!`);
+                } 
+                // Loss conditions
+                else {
+                    // If player scratched while shooting the 8-ball
+                    if (this.cueBall.inPocket) {
+                        this.winner = this.currentPlayer === 1 ? 2 : 1;
+                        this.logMessage(`Player ${this.winner} wins! Player ${this.currentPlayer} scratched on the 8-ball.`);
+                    }
+                    // If player pocketed 8-ball before clearing their group
+                    else if (!playerHasClearedGroup) {
+                        this.winner = this.currentPlayer === 1 ? 2 : 1;
+                        this.logMessage(`Player ${this.winner} wins! Player ${this.currentPlayer} pocketed the 8-ball before clearing their group.`);
+                    }
+                    // If player didn't hit 8-ball first on the final shot
+                    else if (!hitEightBallFirst) {
+                        this.winner = this.currentPlayer === 1 ? 2 : 1;
+                        this.logMessage(`Player ${this.winner} wins! Player ${this.currentPlayer} didn't hit the 8-ball first.`);
+                    }
+                }
+                
+                this.isGameOver = true;
+                this.updateGameInfo();
+                
+                // Send game over state to opponent
+                if (this.connection) {
+                    this.connection.send({
+                        type: 'gameOver',
+                        winner: this.winner
+                    });
+                }
+            }
+            
+            // Update the turn indicator in the UI
+            updateTurnIndicator() {
+                const player1Div = document.getElementById('player1');
+                const player2Div = document.getElementById('player2');
+                const turnIndicator = document.getElementById('turnIndicator');
+                
+                // Remove active class from both players
+                player1Div.classList.remove('active');
+                player2Div.classList.remove('active');
+                
+                // Add active class to current player
+                if (this.currentPlayer === 1) {
+                    player1Div.classList.add('active');
+                    turnIndicator.textContent = 'Player 1\'s Turn';
+                } else {
+                    player2Div.classList.add('active');
+                    turnIndicator.textContent = 'Player 2\'s Turn';
+                }
+                
+                // Indicate if this client's turn
+                if (this.myPlayerNumber !== null) {
+                    if (this.isMyTurn) {
+                        turnIndicator.textContent = 'Your Turn';
+                        if (this.placingCueBall) {
+                            turnIndicator.textContent += ' (Ball in hand)';
+                        }
+                    } else {
+                        turnIndicator.textContent = 'Opponent\'s Turn';
+                    }
+                }
+                
+                // Game over state
+                if (this.isGameOver) {
+                    if (this.winner === this.myPlayerNumber) {
+                        turnIndicator.textContent = 'You Win!';
+                    } else if (this.myPlayerNumber !== null) {
+                        turnIndicator.textContent = 'You Lose!';
+                    } else {
+                        turnIndicator.textContent = `Player ${this.winner} Wins!`;
+                    }
+                }
+            }
+            
+            // Update game info displayed to the user
+            updateGameInfo() {
+                // Update the ball racks
+                this.updateBallRacks();
+                
+                // Update the turn indicator
+                this.updateTurnIndicator();
+            }
+            
+            // Log a message to the message log
+            logMessage(message) {
+                const messageElement = document.createElement('div');
+                messageElement.textContent = message;
+                this.messageLog.appendChild(messageElement);
+                this.messageLog.scrollTop = this.messageLog.scrollHeight;
+            }
+            
+            // Draw the game
+            draw() {
+                // Clear the canvas
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                
+                // Draw the table
+                this.drawTable();
+                
+                // Draw pockets
+                this.drawPockets();
+                
+                // Draw the cue ball aiming guide
+                if (this.cueVisible && !this.ballsMoving && this.isMyTurn && !this.placingCueBall) {
+                    this.drawAimingLine();
+                }
+                
+                // Draw balls
+                this.drawBalls();
+                
+                // Draw cue stick
+                if (this.cueVisible && !this.ballsMoving && this.isMyTurn && !this.placingCueBall) {
+                    this.drawCueStick();
+                }
+                
+                // Draw placement indicator if placing cue ball
+                if (this.placingCueBall && this.isMyTurn) {
+                    this.drawPlacementIndicator();
+                }
+            }
+            
+            // Draw the pool table
+            drawTable() {
+                // Create a transparent border around the table for easier cue control
+                // First, clear everything to transparent
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                
+                // Draw table border (the wooden part)
+                this.ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--table-border').trim() || '#593A16';
+                this.ctx.fillRect(
+                    this.tablePadding, 
+                    this.tablePadding, 
+                    this.width - (this.tablePadding * 2), 
+                    this.height - (this.tablePadding * 2)
+                );
+                
+                // Draw felt (playing surface)
+                this.ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--table-felt').trim() || '#076324';
+                this.ctx.fillRect(
+                    this.tablePadding + this.cushionWidth,
+                    this.tablePadding + this.cushionWidth,
+                    this.width - (this.tablePadding + this.cushionWidth) * 2,
+                    this.height - (this.tablePadding + this.cushionWidth) * 2
+                );
+                
+                // Draw the kitchen line (for break shots)
+                if (this.isBreakShot) {
+                    const kitchenLine = this.width * 0.25;
+                    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(kitchenLine, this.tablePadding + this.cushionWidth);
+                    this.ctx.lineTo(kitchenLine, this.height - this.tablePadding - this.cushionWidth);
+                    this.ctx.stroke();
+                }
+                
+                // Draw "OPEN TABLE" neon sign in the center when table is open
+                const isTableOpen = this.player1BallType === null;
+                
+                // Draw the neon sign - it's always present but changes appearance based on table state
+                const centerX = this.width / 2;
+                const centerY = this.height / 2;
+                
+                // Save the current context state
+                this.ctx.save();
+                
+                // Create neon text effect
+                this.ctx.font = 'bold 24px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                
+                if (isTableOpen && !this.isGameOver && !this.ballsMoving) {
+                    // Bright neon effect when table is open
+                    this.ctx.shadowColor = getComputedStyle(document.documentElement).getPropertyValue('--neon-color').trim() || '#0ff';
+                    this.ctx.shadowBlur = 20;
+                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                    
+                    // Animate the glow with pulsing effect
+                    const pulseStrength = Math.sin(Date.now() / 500) * 0.2 + 0.8;
+                    this.ctx.shadowBlur = 20 * pulseStrength;
+                    
+                    // Draw the text
+                    this.ctx.fillText('OPEN TABLE', centerX, centerY - 30);
+                    
+                    // Draw explanation text below
+                    this.ctx.shadowBlur = 5 * pulseStrength;
+                    this.ctx.font = 'bold 14px Arial';
+                    this.ctx.fillText('Hit any ball except the 8-ball', centerX, centerY);
+                } else if (!this.isGameOver && !this.ballsMoving) {
+                    // Dimmed version when table is closed (groups are assigned)
+                    this.ctx.shadowBlur = 0;
+                    this.ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
+                    this.ctx.fillText('OPEN TABLE', centerX, centerY - 30);
+                    
+                    if (this.player1BallType !== null) {
+                        // Show which ball type each player needs to hit
+                        this.ctx.font = 'bold 14px Arial';
+                        this.ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
+                        const player1Text = this.player1BallType === 'solid' ? 'Player 1: Solids' : 'Player 1: Stripes';
+                        const player2Text = this.player2BallType === 'solid' ? 'Player 2: Solids' : 'Player 2: Stripes';
+                        this.ctx.fillText(`${player1Text} • ${player2Text}`, centerX, centerY);
+                    }
+                }
+                
+                // Restore the context
+                this.ctx.restore();
+            }
+            
+            // Draw the pockets
+            drawPockets() {
+                for (const pocket of this.pockets) {
+                    this.ctx.fillStyle = '#000000';
+                    this.ctx.beginPath();
+                    this.ctx.arc(pocket.x, pocket.y, this.pocketRadius, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+            }
+            
+            // Draw all balls
+            drawBalls() {
+                // Draw other balls first (so numbered balls appear on top)
+                for (const ball of this.balls) {
+                    if (!ball.inPocket) {
+                        this.drawBall(ball);
+                    }
+                }
+                
+                // Draw cue ball last
+                if (!this.cueBall.inPocket) {
+                    this.drawBall(this.cueBall);
+                }
+            }
+            
+            // Draw a single ball
+            drawBall(ball) {
+                // Draw the ball
+                this.ctx.fillStyle = ball.color;
+                this.ctx.beginPath();
+                this.ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // For striped balls, add the white stripe
+                if (ball.isStripe) {
+                    this.ctx.fillStyle = '#FFFFFF';
+                    this.ctx.beginPath();
+                    this.ctx.arc(ball.x, ball.y, ball.radius, 0.25 * Math.PI, 0.75 * Math.PI);
+                    this.ctx.arc(ball.x, ball.y, ball.radius, 1.25 * Math.PI, 1.75 * Math.PI);
+                    this.ctx.fill();
+                }
+                
+                // Add the number (except for cue ball)
+                if (ball.number > 0) {
+                    this.ctx.fillStyle = ball.isStripe || ball.number === 8 ? '#FFFFFF' : '#000000';
+                    this.ctx.font = `bold ${ball.radius * 1.2}px Arial`;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(ball.number.toString(), ball.x, ball.y);
+                }
+            }
+            
+            // Draw the cue stick
+            drawCueStick() {
+                const tipDistance = this.ballRadius * 1.1; // Distance from cue ball center to cue tip
+                const cueWidth = this.ballRadius * 0.5; // Width of the cue at its thickest point
+                
+                // Calculate cue stick endpoint coordinates
+                const tipX = this.cueBall.x + Math.cos(this.cueAngle) * tipDistance;
+                const tipY = this.cueBall.y + Math.sin(this.cueAngle) * tipDistance;
+                
+                const endX = tipX + Math.cos(this.cueAngle) * (this.cueLength + this.cuePower * 5);
+                const endY = tipY + Math.sin(this.cueAngle) * (this.cueLength + this.cuePower * 5);
+                
+                // Draw the cue stick
+                this.ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--cue-color').trim() || '#C19A6B';
+                this.ctx.lineWidth = cueWidth;
+                this.ctx.lineCap = 'round';
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(tipX, tipY);
+                this.ctx.lineTo(endX, endY);
+                this.ctx.stroke();
+                
+                // Draw the cue tip
+                this.ctx.fillStyle = '#333333';
+                this.ctx.beginPath();
+                this.ctx.arc(tipX, tipY, cueWidth / 2, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+            
+            // Draw the aiming line
+            drawAimingLine() {
+                // Calculate end point of the aiming line
+                const lineLength = Math.min(this.width, this.height) * 0.8;
+                const angleOpposite = this.cueAngle + Math.PI;
+                const endX = this.cueBall.x + Math.cos(angleOpposite) * lineLength;
+                const endY = this.cueBall.y + Math.sin(angleOpposite) * lineLength;
+                
+                // Draw a dotted line for aiming
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                this.ctx.lineWidth = 1;
+                this.ctx.setLineDash([5, 5]);
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.cueBall.x, this.cueBall.y);
+                this.ctx.lineTo(endX, endY);
+                this.ctx.stroke();
+                
+                // Reset line dash
+                this.ctx.setLineDash([]);
+            }
+            
+            // Draw placement indicator when placing the cue ball
+            drawPlacementIndicator() {
+                // Draw a semi-transparent circle around the mouse position
+                if (this.isValidCueBallPlacement(this.mouseX, this.mouseY)) {
+                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+                } else {
+                    this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                }
+                
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.arc(this.mouseX, this.mouseY, this.ballRadius, 0, Math.PI * 2);
+                this.ctx.stroke();
+                
+                // Draw the cue ball at the mouse position
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                this.ctx.beginPath();
+                this.ctx.arc(this.mouseX, this.mouseY, this.ballRadius, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Show the kitchen line for break shots
+                if (this.isBreakShot) {
+                    const kitchenLine = this.width * 0.25;
+                    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(kitchenLine, this.tablePadding + this.cushionWidth);
+                    this.ctx.lineTo(kitchenLine, this.height - this.tablePadding - this.cushionWidth);
+                    this.ctx.stroke();
+                }
+            }
+            
+            // Create a new game as host
+            createGame() {
+                if (this.peer) {
+                    this.peer.destroy();
+                }
+                
+                // Show loading message
+                this.logMessage('Creating new game, please wait...');
+                
+                // Disable buttons during connection
+                document.getElementById('createGameBtn').disabled = true;
+                document.getElementById('joinGameBtn').disabled = true;
+                
+                try {
+                    // Initialize PeerJS with custom configuration for reliability
+                    this.peer = new Peer({
+                        debug: 2, // Log level for debugging
+                        config: {
+                            'iceServers': [
+                                { urls: 'stun:stun.l.google.com:19302' },
+                                { urls: 'stun:stun1.l.google.com:19302' },
+                                { urls: 'stun:stun2.l.google.com:19302' },
+                                { urls: 'stun:stun3.l.google.com:19302' },
+                                { urls: 'stun:stun4.l.google.com:19302' }
+                            ]
+                        }
+                    });
+                    
+                    // Set a timeout to handle connection failures
+                    const connectionTimeout = setTimeout(() => {
+                        if (!this.otherPlayerConnected) {
+                            this.logMessage('Could not connect to PeerJS server. Starting local game mode (no online multiplayer).');
+                            
+                            // Enable local play mode
+                            this.hostId = "LOCAL-" + Math.floor(Math.random() * 1000000);
+                            document.getElementById('hostId').textContent = this.hostId;
+                            document.getElementById('hostInfo').classList.remove('hidden');
+                            
+                            this.isHost = true;
+                            this.myPlayerNumber = 1;
+                            this.isMyTurn = true;
+                            
+                            // Re-enable buttons
+                            document.getElementById('createGameBtn').disabled = false;
+                            document.getElementById('joinGameBtn').disabled = false;
+                            
+                            this.updateTurnIndicator();
+                        }
+                    }, 10000); // 10 second timeout
+                    
+                    this.peer.on('open', (id) => {
+                        // Clear the timeout since we connected successfully
+                        clearTimeout(connectionTimeout);
+                        
+                        this.hostId = id;
+                        document.getElementById('hostId').textContent = id;
+                        document.getElementById('hostInfo').classList.remove('hidden');
+                        document.getElementById('createGameBtn').disabled = true;
+                        document.getElementById('joinGameBtn').disabled = true;
+                        
+                        this.isHost = true;
+                        this.myPlayerNumber = 1;
+                        this.isMyTurn = true;
+                        
+                        this.logMessage('Game created! Share your Game ID with a friend to play.');
+                        this.logMessage('Waiting for an opponent to join...');
+                        this.updateTurnIndicator();
+                    });
+                    
+                    this.peer.on('connection', (conn) => {
+                        // Clear the timeout since we got a connection
+                        clearTimeout(connectionTimeout);
+                        
+                        this.connection = conn;
+                        this.setupConnection();
+                        
+                        this.otherPlayerConnected = true;
+                        this.logMessage('Player 2 has joined the game!');
+                        
+                        // Show the chat
+                        document.getElementById('chat').classList.remove('hidden');
+                        
+                        // Reset the game
+                        this.resetGame();
+                        
+                        // Send initial game state
+                        this.sendGameState();
+                    });
+                    
+                    this.peer.on('error', (err) => {
+                        console.error('PeerJS error:', err);
+                        
+                        // Display friendly error messages based on error type
+                        if (err.type === 'server-error') {
+                            this.logMessage('Could not connect to PeerJS server. Try again later or use local play.');
+                        } else if (err.type === 'network' || err.type === 'unavailable-id') {
+                            this.logMessage('Network issue: ' + err.message);
+                        } else {
+                            this.logMessage('Connection error: ' + err.message);
+                        }
+                        
+                        // Re-enable buttons on error
+                        document.getElementById('createGameBtn').disabled = false;
+                        document.getElementById('joinGameBtn').disabled = false;
+                    });
+                } catch (err) {
+                    console.error('Error initializing PeerJS:', err);
+                    this.logMessage('Could not initialize multiplayer. Starting local-only mode.');
+                    
+                    // Fallback to local mode
+                    this.hostId = "LOCAL-" + Math.floor(Math.random() * 1000000);
+                    document.getElementById('hostId').textContent = this.hostId;
+                    document.getElementById('hostInfo').classList.remove('hidden');
+                    
+                    this.isHost = true;
+                    this.myPlayerNumber = 1;
+                    this.isMyTurn = true;
+                    
+                    // Re-enable buttons
+                    document.getElementById('createGameBtn').disabled = false;
+                    document.getElementById('joinGameBtn').disabled = false;
+                    
+                    this.updateTurnIndicator();
+                }
+            }
+            
+            // Show the join game modal
+            showJoinGameModal() {
+                document.getElementById('joinGameModal').style.display = 'flex';
+            }
+            
+            // Hide the join game modal
+            hideJoinGameModal() {
+                document.getElementById('joinGameModal').style.display = 'none';
+            }
+            
+            // Join an existing game
+            joinGame() {
+                const gameId = document.getElementById('gameIdInput').value.trim();
+                
+                if (!gameId) {
+                    this.logMessage('Please enter a valid Game ID.');
+                    return;
+                }
+                
+                if (this.peer) {
+                    this.peer.destroy();
+                }
+                
+                // Show loading message
+                this.logMessage('Connecting to game, please wait...');
+                
+                // Disable buttons during connection
+                document.getElementById('createGameBtn').disabled = true;
+                document.getElementById('joinGameBtn').disabled = true;
+                
+                try {
+                    // Initialize PeerJS with custom configuration for reliability
+                    this.peer = new Peer({
+                        debug: 2, // Log level for debugging
+                        config: {
+                            'iceServers': [
+                                { urls: 'stun:stun.l.google.com:19302' },
+                                { urls: 'stun:stun1.l.google.com:19302' },
+                                { urls: 'stun:stun2.l.google.com:19302' },
+                                { urls: 'stun:stun3.l.google.com:19302' },
+                                { urls: 'stun:stun4.l.google.com:19302' }
+                            ]
+                        }
+                    });
+                    
+                    // Set a timeout for connection failures
+                    const connectionTimeout = setTimeout(() => {
+                        this.logMessage('Connection timed out. Please try again or check the Game ID.');
+                        document.getElementById('createGameBtn').disabled = false;
+                        document.getElementById('joinGameBtn').disabled = false;
+                    }, 15000); // 15 second timeout
+                    
+                    this.peer.on('open', (id) => {
+                        // Connect to the host
+                        this.connection = this.peer.connect(gameId);
+                        
+                        if (!this.connection) {
+                            clearTimeout(connectionTimeout);
+                            this.logMessage('Failed to connect. Please check the Game ID and try again.');
+                            document.getElementById('createGameBtn').disabled = false;
+                            document.getElementById('joinGameBtn').disabled = false;
+                            return;
+                        }
+                        
+                        this.setupConnection();
+                        
+                        this.connection.on('open', () => {
+                            // Clear timeout since we're connected
+                            clearTimeout(connectionTimeout);
+                            
+                            this.isHost = false;
+                            this.myPlayerNumber = 2;
+                            this.isMyTurn = false; // Player 1 starts
+                            
+                            this.logMessage('Successfully connected to the game!');
+                            this.hideJoinGameModal();
+                            
+                            // Show the chat
+                            document.getElementById('chat').classList.remove('hidden');
+                            
+                            // Update UI to show it's the other player's turn initially
+                            this.updateTurnIndicator();
+                        });
+                    });
+                    
+                    this.peer.on('error', (err) => {
+                        clearTimeout(connectionTimeout);
+                        console.error('PeerJS error:', err);
+                        
+                        // Display friendly error messages based on error type
+                        if (err.type === 'peer-unavailable') {
+                            this.logMessage('Game ID not found. Please check the ID and try again.');
+                        } else if (err.type === 'network' || err.type === 'server-error') {
+                            this.logMessage('Network issue: ' + err.message);
+                        } else {
+                            this.logMessage('Connection error: ' + err.message);
+                        }
+                        
+                        // Re-enable buttons on error
+                        document.getElementById('createGameBtn').disabled = false;
+                        document.getElementById('joinGameBtn').disabled = false;
+                    });
+                } catch (err) {
+                    console.error('Error initializing connection:', err);
+                    this.logMessage('Failed to initialize connection. Please try again.');
+                    
+                    // Re-enable buttons
+                    document.getElementById('createGameBtn').disabled = false;
+                    document.getElementById('joinGameBtn').disabled = false;
+                }
+            }
+            
+            // Set up the peer connection
+            setupConnection() {
+                this.connection.on('open', () => {
+                    this.logMessage('Connection established successfully!');
+                    this.otherPlayerConnected = true;
+                    this.updateTurnIndicator();
+                });
+                
+                this.connection.on('data', (data) => {
+                    this.handleNetworkMessage(data);
+                });
+                
+                this.connection.on('close', () => {
+                    this.logMessage('Connection closed. The other player has left the game.');
+                    this.otherPlayerConnected = false;
+                    this.connection = null;
+                });
+                
+                this.connection.on('error', (err) => {
+                    console.error('Connection error:', err);
+                    this.logMessage('Connection error: ' + err.message);
+                });
+            }
+            
+            // Copy the game ID to clipboard (or provide a fallback)
+            copyGameId() {
+                const hostId = document.getElementById('hostId').textContent;
+                
+                // Create a temporary text area to select and copy from
+                const textArea = document.createElement('textarea');
+                textArea.value = hostId;
+                textArea.style.position = 'fixed';  // Make it invisible but accessible
+                textArea.style.opacity = '0';
+                textArea.style.left = '0';
+                textArea.style.top = '0';
+                document.body.appendChild(textArea);
+                
+                try {
+                    // Try to select the text and copy it
+                    textArea.select();
+                    textArea.setSelectionRange(0, 99999); // For mobile devices
+                    
+                    // Try to execute the copy command
+                    const successful = document.execCommand('copy');
+                    
+                    // Show appropriate message
+                    if (successful) {
+                        this.logMessage('Game ID copied to clipboard! Share it with a friend.');
+                    } else {
+                        this.logMessage('Please select and copy the Game ID manually.');
+                        // Highlight the ID to make manual copying easier
+                        const idElement = document.getElementById('hostId');
+                        idElement.style.backgroundColor = 'rgba(93, 92, 222, 0.4)';
+                        setTimeout(() => {
+                            idElement.style.backgroundColor = 'rgba(93, 92, 222, 0.1)';
+                        }, 2000);
+                    }
+                } catch (err) {
+                    console.error('Failed to copy: ', err);
+                    this.logMessage('Please select and copy the Game ID manually.');
+                } finally {
+                    // Clean up
+                    document.body.removeChild(textArea);
+                }
+            }
+            
+            // Send a chat message
+            sendChatMessage() {
+                const input = document.getElementById('chatInput');
+                const message = input.value.trim();
+                
+                if (message && this.connection) {
+                    this.connection.send({
+                        type: 'chat',
+                        message: message
+                    });
+                    
+                    this.addChatMessage(message, true);
+                    input.value = '';
+                }
+            }
+            
+            // Add a message to the chat
+            addChatMessage(message, isFromSelf) {
+                const chatMessages = document.getElementById('chatMessages');
+                
+                const messageContainer = document.createElement('div');
+                messageContainer.className = `message-container ${isFromSelf ? 'self' : ''}`;
+                
+                const messageElement = document.createElement('div');
+                messageElement.className = `chat-message ${isFromSelf ? 'message-self' : 'message-other'}`;
+                messageElement.textContent = message;
+                
+                messageContainer.appendChild(messageElement);
+                chatMessages.appendChild(messageContainer);
+                
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // Handle a network message
+            handleNetworkMessage(data) {
+                switch (data.type) {
+                    case 'gameState':
+                        this.syncGameState(data);
+                        break;
+                    case 'shot':
+                        this.handleRemoteShot(data);
+                        break;
+                    case 'cueBallPlacement':
+                        this.handleRemoteCueBallPlacement(data);
+                        break;
+                    case 'ballAssignment':
+                        this.handleRemoteBallAssignment(data);
+                        break;
+                    case 'gameOver':
+                        this.handleRemoteGameOver(data);
+                        break;
+                    case 'chat':
+                        this.addChatMessage(data.message, false);
+                        break;
+                    default:
+                        console.warn('Unknown message type:', data.type);
+                }
+            }
+            
+            // Synchronize game state from the host
+            syncGameState(data) {
+                if (!this.isHost) {
+                    console.log("Received game state update:", data);
+                    
+                    // Store previous turn state to detect changes
+                    const wasMyTurn = this.isMyTurn;
+                    const previousPlayer = this.currentPlayer;
+                    const wasBallsMoving = this.ballsMoving;
+                    
+                    // Update ball positions
+                    this.cueBall.x = data.cueBall.x;
+                    this.cueBall.y = data.cueBall.y;
+                    this.cueBall.inPocket = data.cueBall.inPocket;
+                    
+                    // Update all other balls
+                    for (let i = 0; i < this.balls.length; i++) {
+                        this.balls[i].inPocket = data.balls[i].inPocket;
+                        
+                        if (!this.balls[i].inPocket) {
+                            this.balls[i].x = data.balls[i].x;
+                            this.balls[i].y = data.balls[i].y;
+                        }
+                    }
+                    
+                    // Update game state
+                    this.currentPlayer = data.currentPlayer;
+                    this.player1BallType = data.player1BallType;
+                    this.player2BallType = data.player2BallType;
+                    this.isBreakShot = data.isBreakShot;
+                    this.player1Balls = data.player1Balls;
+                    this.player2Balls = data.player2Balls;
+                    this.remainingSolids = data.remainingSolids;
+                    this.remainingStripes = data.remainingStripes;
+                    this.isGameOver = data.isGameOver;
+                    this.winner = data.winner;
+                    this.ballsMoving = data.ballsMoving; // Ensure we sync ball movement state
+                    
+                    // Important: Update turn status and then check for ball placement
+                    this.isMyTurn = (this.myPlayerNumber === this.currentPlayer);
+                    
+                    // Only allow cue ball placement for the player whose turn it is
+                    this.ballInHand = data.ballInHand;
+                    this.placingCueBall = data.placingCueBall && this.isMyTurn;
+                    
+                    // Special case: If we were previously moving balls but now they've stopped
+                    // and it's now our turn, make sure we log that
+                    if (wasBallsMoving && !this.ballsMoving && this.isMyTurn) {
+                        if (this.placingCueBall) {
+                            this.logMessage(`Your turn now. You have ball-in-hand.`);
+                        } else {
+                            this.logMessage(`Your turn now.`);
+                        }
+                    }
+                    // If it just became my turn and I have ball-in-hand, notify the player
+                    else if (!wasMyTurn && this.isMyTurn && this.placingCueBall) {
+                        this.logMessage(`Your turn. Ball in hand - place the cue ball anywhere on the table.`);
+                    }
+                    // If the turn changed but without the above conditions
+                    else if (previousPlayer !== this.currentPlayer) {
+                        if (this.isMyTurn) {
+                            this.logMessage("Your turn now.");
+                        } else {
+                            this.logMessage(`Player ${this.currentPlayer}'s turn.`);
+                        }
+                    }
+                    
+                    // Show ball group indicators if assigned
+                    if (this.player1BallType !== null) {
+                        document.getElementById('player1Group').classList.remove('hidden');
+                        document.getElementById('player2Group').classList.remove('hidden');
+                        
+                        // Update the ball type indicators
+                        const player1Indicator = document.getElementById('player1BallType');
+                        const player2Indicator = document.getElementById('player2BallType');
+                        
+                        player1Indicator.className = 'ball-indicator';
+                        player2Indicator.className = 'ball-indicator';
+                        
+                        if (this.player1BallType === 'solid') {
+                            player1Indicator.classList.add('solid');
+                            player2Indicator.classList.add('stripe');
+                        } else {
+                            player1Indicator.classList.add('stripe');
+                            player2Indicator.classList.add('solid');
+                        }
+                    }
+                    
+                    // Update UI
+                    this.updateGameInfo();
+                }
+            }
+            
+            // Handle a shot from the remote player
+            handleRemoteShot(data) {
+                if (!this.isMyTurn) {
+                    // Apply the shot to the cue ball (with increased power multiplier)
+                    const powerMultiplier = 75.0; // Match the multiplier used in handleMouseUp (now 5x more powerful)
+                    this.cueBall.dx = Math.cos(data.angle) * data.power * powerMultiplier;
+                    this.cueBall.dy = Math.sin(data.angle) * data.power * powerMultiplier;
+                    this.ballsMoving = true;
+                    this.firstCollision = null; // Reset first collision detection for new shot
+                }
+            }
+            
+            // Handle remote cue ball placement
+            handleRemoteCueBallPlacement(data) {
+                if (!this.isMyTurn) {
+                    this.cueBall.x = data.x;
+                    this.cueBall.y = data.y;
+                    this.cueBall.inPocket = false;
+                    this.placingCueBall = false;
+                }
+            }
+            
+            // Handle remote ball group assignment
+            handleRemoteBallAssignment(data) {
+                this.player1BallType = data.player1Type;
+                this.player2BallType = data.player2Type;
+                
+                // Show the ball type indicators
+                document.getElementById('player1Group').classList.remove('hidden');
+                document.getElementById('player2Group').classList.remove('hidden');
+                
+                // Update the ball type indicators
+                const player1Indicator = document.getElementById('player1BallType');
+                const player2Indicator = document.getElementById('player2BallType');
+                
+                player1Indicator.className = 'ball-indicator';
+                player2Indicator.className = 'ball-indicator';
+                
+                if (this.player1BallType === 'solid') {
+                    player1Indicator.classList.add('solid');
+                    player2Indicator.classList.add('stripe');
+                    this.logMessage('Player 1 is solids (1-7). Player 2 is stripes (9-15).');
+                } else {
+                    player1Indicator.classList.add('stripe');
+                    player2Indicator.classList.add('solid');
+                    this.logMessage('Player 1 is stripes (9-15). Player 2 is solids (1-7).');
+                }
+            }
+            
+            // Handle remote game over message
+            handleRemoteGameOver(data) {
+                this.isGameOver = true;
+                this.winner = data.winner;
+                this.updateTurnIndicator();
+                
+                if (this.winner === this.myPlayerNumber) {
+                    this.logMessage('You win!');
+                } else {
+                    this.logMessage('You lose!');
+                }
+            }
+            
+            // Send game state to the other player
+            sendGameState() {
+                if (this.connection && this.isHost) {
+                    const gameState = {
+                        type: 'gameState',
+                        cueBall: {
+                            x: this.cueBall.x,
+                            y: this.cueBall.y,
+                            inPocket: this.cueBall.inPocket
+                        },
+                        balls: this.balls.map(ball => ({
+                            x: ball.x,
+                            y: ball.y,
+                            inPocket: ball.inPocket
+                        })),
+                        currentPlayer: this.currentPlayer,
+                        player1BallType: this.player1BallType,
+                        player2BallType: this.player2BallType,
+                        isBreakShot: this.isBreakShot,
+                        placingCueBall: this.placingCueBall,
+                        ballInHand: this.ballInHand,
+                        player1Balls: this.player1Balls,
+                        player2Balls: this.player2Balls,
+                        remainingSolids: this.remainingSolids,
+                        remainingStripes: this.remainingStripes,
+                        isGameOver: this.isGameOver,
+                        winner: this.winner,
+                        ballsMoving: this.ballsMoving // Include ball movement state in sync
+                    };
+                    
+                    this.connection.send(gameState);
+                }
+            }
+            
+            // Reset the game
+            resetGame() {
+                // Reset ball positions
+                this.createBalls();
+                
+                // Reset game state
+                this.isBreakShot = true;
+                this.isGameOver = false;
+                this.winner = null;
+                this.currentPlayer = 1;
+                this.player1BallType = null;
+                this.player2BallType = null;
+                this.ballsMoving = false;
+                this.placingCueBall = false;
+                this.lastPocketedBall = null;
+                this.foul = false;
+                this.firstCollision = null;
+                
+                // Reset player scores and ball assignments
+                this.player1Balls = [];
+                this.player2Balls = [];
+                this.remainingSolids = [1, 2, 3, 4, 5, 6, 7];
+                this.remainingStripes = [9, 10, 11, 12, 13, 14, 15];
+                this.eightBallPocketed = false;
+                
+                // Hide the ball type indicators
+                document.getElementById('player1Group').classList.add('hidden');
+                document.getElementById('player2Group').classList.add('hidden');
+                
+                // Set turn
+                this.isMyTurn = (this.myPlayerNumber === 1);
+                
+                // Update UI
+                this.updateGameInfo();
+                this.logMessage('Game reset. Player 1 breaks.');
+            }
+        }
+    </script>
+</body>
+</html>
