@@ -23,6 +23,7 @@
             --cue-color: #C19A6B;
             --neon-color: #0ff;
             --neon-glow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff, 0 0 40px #0ff;
+            --primary: var(--primary-color);
         }
 
         body {
@@ -261,7 +262,7 @@
             width: 100%;
             height: 100%;
             background-color: rgba(0, 0, 0, 0.7);
-            z-index: 100;
+            z-index: 1100; /* Increased z-index to be higher than connectionInfo */
             justify-content: center;
             align-items: center;
         }
@@ -274,6 +275,7 @@
             width: 500px;
             text-align: center;
             position: relative;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         .dark .modal-content {
@@ -287,21 +289,43 @@
             right: 15px;
             font-size: 24px;
             cursor: pointer;
+            color: #888;
+            transition: color 0.2s ease;
+        }
+
+        .close-button:hover {
+            color: var(--primary-color);
         }
 
         #connectionInfo {
-            margin-top: 1rem;
-            padding: 1rem;
-            border-radius: 10px;
-            text-align: center;
-            transition: all 0.3s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            padding: 2rem;
         }
 
-        .dark #connectionInfo {
+        #connectionInfo > div {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .dark #connectionInfo > div {
             background-color: #252525;
         }
 
-        .light #connectionInfo {
+        .light #connectionInfo > div {
             background-color: #f5f5f5;
         }
 
@@ -462,6 +486,26 @@
                 padding: 0.5rem;
             }
         }
+
+        #gameIdDisplay {
+            background-color: rgba(93, 92, 222, 0.1);
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.5rem;
+            display: inline-block;
+        }
+
+        #currentGameId {
+            color: var(--primary-color);
+            letter-spacing: 0.5px;
+        }
+
+        .dark #gameIdDisplay {
+            background-color: rgba(93, 92, 222, 0.2);
+        }
+
+        .dark #currentGameId {
+            color: #8a89ff;
+        }
     </style>
 </head>
 <body class="light">
@@ -493,7 +537,10 @@
 
     <!-- Game Container (Hidden initially) -->
     <div id="gameContainer" class="mx-auto">
-        <h1 class="text-2xl font-bold mb-4">8-Ball Pool</h1>
+        <h1 class="text-2xl font-bold mb-2">8-Ball Pool</h1>
+        <div id="gameIdDisplay" class="text-center mb-4 hidden">
+            <span class="text-sm">Game ID: <span id="currentGameId" class="font-mono font-semibold"></span></span>
+        </div>
         
         <canvas id="gameCanvas" width="800" height="400"></canvas>
         
@@ -537,15 +584,17 @@
         </div>
         
         <div id="connectionInfo">
-            <div class="mb-4">
-                <h3 class="text-lg font-semibold mb-2">Create or Join a Game</h3>
-                <button id="createGameBtn" class="game-button mr-2">Create New Game</button>
-                <button id="joinGameBtn" class="game-button">Join Game</button>
-            </div>
-            <div id="hostInfo" class="hidden">
-                <p>Share this ID with a friend to play:</p>
-                <p class="font-bold my-2"><span id="hostId" class="connection-id"></span></p>
-                <button id="copyIdBtn" class="game-button">Copy ID</button>
+            <div>
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold mb-2">Create or Join a Game</h3>
+                    <button id="createGameBtn" class="game-button mr-2">Create New Game</button>
+                    <button id="joinGameBtn" class="game-button">Join Game</button>
+                </div>
+                <div id="hostInfo" class="hidden">
+                    <p>Share this ID with a friend to play:</p>
+                    <p class="font-bold my-2"><span id="hostId" class="connection-id"></span></p>
+                    <button id="copyIdBtn" class="game-button">Copy ID</button>
+                </div>
             </div>
         </div>
         
@@ -585,7 +634,7 @@
             <h2 class="text-xl font-bold mb-4">Join a Game</h2>
             <div class="mb-4">
                 <label for="gameIdInput" class="block mb-2">Enter Game ID:</label>
-                <input type="text" id="gameIdInput" class="w-full px-3 py-2 border rounded-lg text-base text-black dark:text-white dark:bg-gray-700" placeholder="Paste game ID here">
+                <input type="text" id="gameIdInput" class="w-full px-3 py-2 border rounded-lg text-base text-black dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Paste game ID here">
             </div>
             <button id="connectBtn" class="game-button">Connect</button>
         </div>
@@ -2213,6 +2262,13 @@
                         this.otherPlayerConnected = true;
                         this.logMessage('Player 2 has joined the game!');
                         
+                        // Hide connection info overlay
+                        document.getElementById('connectionInfo').style.display = 'none';
+                        
+                        // Show game ID under title
+                        document.getElementById('currentGameId').textContent = this.hostId;
+                        document.getElementById('gameIdDisplay').classList.remove('hidden');
+                        
                         // Show the chat
                         document.getElementById('chat').classList.remove('hidden');
                         
@@ -2264,6 +2320,7 @@
             showJoinGameModal() {
                 document.getElementById('joinGameModal').style.display = 'flex';
                 document.getElementById('gameIdInput').value = ''; // Clear the input field
+                document.getElementById('gameIdInput').focus(); // Focus on the input field
             }
             
             // Hide the join game modal
@@ -2338,6 +2395,13 @@
                             this.logMessage('Successfully connected to the game!');
                             this.hideJoinGameModal();
                             
+                            // Hide connection info overlay
+                            document.getElementById('connectionInfo').style.display = 'none';
+                            
+                            // Show game ID under title
+                            document.getElementById('currentGameId').textContent = gameId;
+                            document.getElementById('gameIdDisplay').classList.remove('hidden');
+                            
                             // Show the chat
                             document.getElementById('chat').classList.remove('hidden');
                             
@@ -2389,6 +2453,12 @@
                     this.logMessage('Connection closed. The other player has left the game.');
                     this.otherPlayerConnected = false;
                     this.connection = null;
+                    
+                    // Show connection info overlay again
+                    document.getElementById('connectionInfo').style.display = 'flex';
+                    
+                    // Hide game ID display
+                    document.getElementById('gameIdDisplay').classList.add('hidden');
                 });
                 
                 this.connection.on('error', (err) => {
