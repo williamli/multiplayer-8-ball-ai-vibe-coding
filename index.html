@@ -802,10 +802,10 @@
             
             // Initialize the balls
             createBalls() {
-                // Create the cue ball
+                // Create the cue ball with precise positioning
                 this.cueBall = {
-                    x: this.width / 4,
-                    y: this.height / 2,
+                    x: parseFloat((this.width / 4).toFixed(6)),
+                    y: parseFloat((this.height / 2).toFixed(6)),
                     radius: this.ballRadius,
                     dx: 0,
                     dy: 0,
@@ -838,12 +838,12 @@
                 // Create all other balls
                 this.balls = [];
                 
-                // Set up the rack in a triangle formation
-                const startX = this.width * 0.75;
-                const startY = this.height / 2;
-                const ballDiameter = this.ballRadius * 2;
-                const rowSpacing = Math.sqrt(3) * ballDiameter;
-                const colSpacing = ballDiameter + 1; // Small gap to prevent overlap
+                // Set up the rack in a triangle formation with precise positioning
+                const startX = parseFloat((this.width * 0.75).toFixed(6));
+                const startY = parseFloat((this.height / 2).toFixed(6));
+                const ballDiameter = parseFloat((this.ballRadius * 2).toFixed(6));
+                const rowSpacing = parseFloat((Math.sqrt(3) * ballDiameter).toFixed(6));
+                const colSpacing = parseFloat((ballDiameter + 1).toFixed(6)); // Small gap to prevent overlap
                 
                 // Define positions for a standard 15-ball rack
                 const rackPositions = [
@@ -869,10 +869,10 @@
                     { row: 4, col: 4, number: 15 }
                 ];
                 
-                // Create balls based on the rack positions
+                // Create balls based on the rack positions with precise coordinates
                 rackPositions.forEach(pos => {
-                    const x = startX + (pos.row * rowSpacing / 2);
-                    const y = startY - (pos.row * colSpacing / 2) + (pos.col * colSpacing);
+                    const x = parseFloat((startX + (pos.row * rowSpacing / 2)).toFixed(6));
+                    const y = parseFloat((startY - (pos.row * colSpacing / 2) + (pos.col * colSpacing)).toFixed(6));
                     
                     const isStripe = pos.number >= 9 && pos.number !== 8;
                     
@@ -982,8 +982,17 @@
                     if (this.cuePower > 0 && this.isMyTurn) {
                         const angleOpposite = this.cueAngle + Math.PI;
                         const powerMultiplier = 75.0; // Greatly increased force (5x more than before) for more powerful shots
-                        this.cueBall.dx = Math.cos(angleOpposite) * this.cuePower * powerMultiplier;
-                        this.cueBall.dy = Math.sin(angleOpposite) * this.cuePower * powerMultiplier;
+                        
+                        // Use precise values for deterministic physics
+                        const shotAngle = parseFloat(angleOpposite.toFixed(6));
+                        const shotPower = parseFloat(this.cuePower.toFixed(6));
+                        
+                        // Apply the shot with precise values
+                        this.cueBall.dx = Math.cos(shotAngle) * shotPower * powerMultiplier;
+                        this.cueBall.dy = Math.sin(shotAngle) * shotPower * powerMultiplier;
+                        
+                        // Reset physics accumulator for a fresh simulation
+                        this.physicsAccumulator = 0;
                         
                         // Reset power meter UI
                         document.getElementById('powerLevel').style.width = '0%';
@@ -992,12 +1001,13 @@
                         this.ballsMoving = true;
                         this.firstCollision = null; // Reset first collision for new shot
                         
-                        // Send the shot data to the other player
+                        // Send the shot data to the other player with precise values
                         if (this.connection) {
                             this.connection.send({
                                 type: 'shot',
-                                angle: angleOpposite,
-                                power: this.cuePower
+                                angle: shotAngle,
+                                power: shotPower,
+                                ballPositions: this.getBallPositionsForSync()
                             });
                         }
                     }
@@ -1015,17 +1025,18 @@
                     
                     // Check if position is valid (on the table and not in a restricted area)
                     if (this.isValidCueBallPlacement(x, y)) {
-                        this.cueBall.x = x;
-                        this.cueBall.y = y;
+                        // Use precise values for deterministic physics
+                        this.cueBall.x = parseFloat(x.toFixed(6));
+                        this.cueBall.y = parseFloat(y.toFixed(6));
                         this.placingCueBall = false;
                         this.cueBall.inPocket = false;
                         
-                        // Send the cue ball placement to the other player
+                        // Send the cue ball placement to the other player with precise values
                         if (this.connection) {
                             this.connection.send({
                                 type: 'cueBallPlacement',
-                                x: x,
-                                y: y
+                                x: this.cueBall.x,
+                                y: this.cueBall.y
                             });
                         }
                         
@@ -1097,20 +1108,35 @@
             
             // Update game physics
             update(deltaTime) {
-                // Cap deltaTime to avoid large jumps
-                const dt = Math.min(deltaTime, 1 / 30);
+                // Use fixed time steps for deterministic physics
+                const fixedDt = 1/120; // Fixed time step of 120 fps for consistent physics
+                const maxSteps = 5; // Limit max steps to prevent spiral of death
                 
-                // Update balls
-                this.updateBalls(dt);
+                // Accumulate time and run simulation in fixed steps
+                this.physicsAccumulator = (this.physicsAccumulator || 0) + deltaTime;
                 
-                // Check for pocketed balls
-                this.checkPockets();
+                // Run fixed timestep updates
+                let steps = 0;
+                while (this.physicsAccumulator >= fixedDt && steps < maxSteps) {
+                    this.updatePhysicsStep(fixedDt);
+                    this.physicsAccumulator -= fixedDt;
+                    steps++;
+                }
                 
                 // Check if all balls have stopped moving
                 if (this.areBallsStopped()) {
                     this.ballsMoving = false;
                     this.handleTurnEnd();
                 }
+            }
+            
+            // Fixed timestep physics update
+            updatePhysicsStep(dt) {
+                // Update balls
+                this.updateBalls(dt);
+                
+                // Check for pocketed balls
+                this.checkPockets();
             }
             
             // Update all ball positions and velocities
@@ -1122,8 +1148,9 @@
                     this.checkCushionCollision(this.cueBall);
                 }
                 
-                // Update other balls
-                for (const ball of this.balls) {
+                // Update other balls - use a consistent order for determinism
+                for (let i = 0; i < this.balls.length; i++) {
+                    const ball = this.balls[i];
                     if (!ball.inPocket) {
                         this.updateBallPosition(ball, dt);
                         this.checkBallCollision(ball);
@@ -1134,17 +1161,17 @@
             
             // Update a single ball's position based on its velocity
             updateBallPosition(ball, dt) {
+                // Use precise calculations with fixed values
                 ball.x += ball.dx * dt;
                 ball.y += ball.dy * dt;
                 
-                // Apply friction to slow the ball down
-                const friction = 1.5; // Friction coefficient
+                // Apply friction to slow the ball down - use fixed values
                 const slowdown = Math.pow(0.98, dt * 60); // Exponential slowdown
                 
                 ball.dx *= slowdown;
                 ball.dy *= slowdown;
                 
-                // Stop the ball if it's moving very slowly
+                // Stop the ball if it's moving very slowly - use fixed threshold
                 if (Math.abs(ball.dx) < 0.1 && Math.abs(ball.dy) < 0.1) {
                     ball.dx = 0;
                     ball.dy = 0;
@@ -1153,33 +1180,37 @@
             
             // Check if a ball collides with the table cushions
             checkCushionCollision(ball) {
-                const topCushion = this.tablePadding + this.cushionWidth;
-                const bottomCushion = this.height - this.tablePadding - this.cushionWidth;
-                const leftCushion = this.tablePadding + this.cushionWidth;
-                const rightCushion = this.width - this.tablePadding - this.cushionWidth;
+                // Use precise values for cushion positions
+                const topCushion = parseFloat((this.tablePadding + this.cushionWidth).toFixed(6));
+                const bottomCushion = parseFloat((this.height - this.tablePadding - this.cushionWidth).toFixed(6));
+                const leftCushion = parseFloat((this.tablePadding + this.cushionWidth).toFixed(6));
+                const rightCushion = parseFloat((this.width - this.tablePadding - this.cushionWidth).toFixed(6));
+                
+                // Fixed restitution coefficient for deterministic bounces
+                const restitution = 0.9; // 10% energy loss
                 
                 // Check for collision with the top cushion
                 if (ball.y - ball.radius < topCushion) {
-                    ball.y = topCushion + ball.radius;
-                    ball.dy = -ball.dy * 0.9; // 10% energy loss
+                    ball.y = parseFloat((topCushion + ball.radius).toFixed(6));
+                    ball.dy = parseFloat((-ball.dy * restitution).toFixed(6));
                 }
                 
                 // Check for collision with the bottom cushion
                 if (ball.y + ball.radius > bottomCushion) {
-                    ball.y = bottomCushion - ball.radius;
-                    ball.dy = -ball.dy * 0.9;
+                    ball.y = parseFloat((bottomCushion - ball.radius).toFixed(6));
+                    ball.dy = parseFloat((-ball.dy * restitution).toFixed(6));
                 }
                 
                 // Check for collision with the left cushion
                 if (ball.x - ball.radius < leftCushion) {
-                    ball.x = leftCushion + ball.radius;
-                    ball.dx = -ball.dx * 0.9;
+                    ball.x = parseFloat((leftCushion + ball.radius).toFixed(6));
+                    ball.dx = parseFloat((-ball.dx * restitution).toFixed(6));
                 }
                 
                 // Check for collision with the right cushion
                 if (ball.x + ball.radius > rightCushion) {
-                    ball.x = rightCushion - ball.radius;
-                    ball.dx = -ball.dx * 0.9;
+                    ball.x = parseFloat((rightCushion - ball.radius).toFixed(6));
+                    ball.dx = parseFloat((-ball.dx * restitution).toFixed(6));
                 }
             }
             
@@ -1213,38 +1244,38 @@
                         console.log(`First collision with ball ${this.firstCollision.number}`);
                     }
                     
-                    // Calculate collision normal
-                    const nx = dx / distance;
-                    const ny = dy / distance;
+                    // Calculate collision normal with precise values
+                    const nx = parseFloat((dx / distance).toFixed(6));
+                    const ny = parseFloat((dy / distance).toFixed(6));
                     
                     // Calculate relative velocity
                     const vx = ball1.dx - ball2.dx;
                     const vy = ball1.dy - ball2.dy;
                     
-                    // Calculate relative speed along the normal
-                    const speed = vx * nx + vy * ny;
+                    // Calculate relative speed along the normal with precise values
+                    const speed = parseFloat((vx * nx + vy * ny).toFixed(6));
                     
                     // If the balls are moving away from each other, no collision
                     if (speed < 0) return;
                     
-                    // Calculate impulse
-                    const impulse = 2 * speed / (ball1.mass + ball2.mass);
+                    // Calculate impulse with precise values
+                    const impulse = parseFloat((2 * speed / (ball1.mass + ball2.mass)).toFixed(6));
                     
-                    // Apply impulse to the balls
-                    ball1.dx -= impulse * ball2.mass * nx;
-                    ball1.dy -= impulse * ball2.mass * ny;
-                    ball2.dx += impulse * ball1.mass * nx;
-                    ball2.dy += impulse * ball1.mass * ny;
+                    // Apply impulse to the balls with precise values
+                    ball1.dx = parseFloat((ball1.dx - impulse * ball2.mass * nx).toFixed(6));
+                    ball1.dy = parseFloat((ball1.dy - impulse * ball2.mass * ny).toFixed(6));
+                    ball2.dx = parseFloat((ball2.dx + impulse * ball1.mass * nx).toFixed(6));
+                    ball2.dy = parseFloat((ball2.dy + impulse * ball1.mass * ny).toFixed(6));
                     
-                    // Move balls apart to prevent sticking
-                    const overlap = ball1.radius + ball2.radius - distance;
-                    const correctionX = nx * overlap * 0.5;
-                    const correctionY = ny * overlap * 0.5;
+                    // Move balls apart to prevent sticking with precise values
+                    const overlap = parseFloat((ball1.radius + ball2.radius - distance).toFixed(6));
+                    const correctionX = parseFloat((nx * overlap * 0.5).toFixed(6));
+                    const correctionY = parseFloat((ny * overlap * 0.5).toFixed(6));
                     
-                    ball1.x -= correctionX;
-                    ball1.y -= correctionY;
-                    ball2.x += correctionX;
-                    ball2.y += correctionY;
+                    ball1.x = parseFloat((ball1.x - correctionX).toFixed(6));
+                    ball1.y = parseFloat((ball1.y - correctionY).toFixed(6));
+                    ball2.x = parseFloat((ball2.x + correctionX).toFixed(6));
+                    ball2.y = parseFloat((ball2.y + correctionY).toFixed(6));
                 }
             }
             
@@ -2401,19 +2432,9 @@
                     const previousPlayer = this.currentPlayer;
                     const wasBallsMoving = this.ballsMoving;
                     
-                    // Update ball positions
-                    this.cueBall.x = data.cueBall.x;
-                    this.cueBall.y = data.cueBall.y;
-                    this.cueBall.inPocket = data.cueBall.inPocket;
-                    
-                    // Update all other balls
-                    for (let i = 0; i < this.balls.length; i++) {
-                        this.balls[i].inPocket = data.balls[i].inPocket;
-                        
-                        if (!this.balls[i].inPocket) {
-                            this.balls[i].x = data.balls[i].x;
-                            this.balls[i].y = data.balls[i].y;
-                        }
+                    // Update ball positions using the new sync method
+                    if (data.ballPositions) {
+                        this.syncBallPositions(data.ballPositions);
                     }
                     
                     // Update game state
@@ -2487,8 +2508,16 @@
             // Handle a shot from the remote player
             handleRemoteShot(data) {
                 if (!this.isMyTurn) {
-                    // Apply the shot to the cue ball (with increased power multiplier)
-                    const powerMultiplier = 75.0; // Match the multiplier used in handleMouseUp (now 5x more powerful)
+                    // Sync ball positions first to ensure identical starting state
+                    if (data.ballPositions) {
+                        this.syncBallPositions(data.ballPositions);
+                    }
+                    
+                    // Reset physics accumulator for a fresh simulation
+                    this.physicsAccumulator = 0;
+                    
+                    // Apply the shot to the cue ball with precise values
+                    const powerMultiplier = 75.0; // Match the multiplier used in handleMouseUp
                     this.cueBall.dx = Math.cos(data.angle) * data.power * powerMultiplier;
                     this.cueBall.dy = Math.sin(data.angle) * data.power * powerMultiplier;
                     this.ballsMoving = true;
@@ -2499,6 +2528,7 @@
             // Handle remote cue ball placement
             handleRemoteCueBallPlacement(data) {
                 if (!this.isMyTurn) {
+                    // Use the exact values sent for deterministic physics
                     this.cueBall.x = data.x;
                     this.cueBall.y = data.y;
                     this.cueBall.inPocket = false;
@@ -2546,21 +2576,46 @@
                 }
             }
             
+            // Get ball positions for synchronization
+            getBallPositionsForSync() {
+                const positions = {
+                    cueBall: {
+                        x: parseFloat(this.cueBall.x.toFixed(6)),
+                        y: parseFloat(this.cueBall.y.toFixed(6)),
+                        inPocket: this.cueBall.inPocket
+                    },
+                    balls: this.balls.map(ball => ({
+                        x: parseFloat(ball.x.toFixed(6)),
+                        y: parseFloat(ball.y.toFixed(6)),
+                        inPocket: ball.inPocket
+                    }))
+                };
+                return positions;
+            }
+            
+            // Sync ball positions from data
+            syncBallPositions(positions) {
+                // Update cue ball
+                this.cueBall.x = positions.cueBall.x;
+                this.cueBall.y = positions.cueBall.y;
+                this.cueBall.inPocket = positions.cueBall.inPocket;
+                
+                // Update all other balls
+                for (let i = 0; i < this.balls.length; i++) {
+                    if (i < positions.balls.length) {
+                        this.balls[i].x = positions.balls[i].x;
+                        this.balls[i].y = positions.balls[i].y;
+                        this.balls[i].inPocket = positions.balls[i].inPocket;
+                    }
+                }
+            }
+            
             // Send game state to the other player
             sendGameState() {
                 if (this.connection && this.isHost) {
                     const gameState = {
                         type: 'gameState',
-                        cueBall: {
-                            x: this.cueBall.x,
-                            y: this.cueBall.y,
-                            inPocket: this.cueBall.inPocket
-                        },
-                        balls: this.balls.map(ball => ({
-                            x: ball.x,
-                            y: ball.y,
-                            inPocket: ball.inPocket
-                        })),
+                        ballPositions: this.getBallPositionsForSync(),
                         currentPlayer: this.currentPlayer,
                         player1BallType: this.player1BallType,
                         player2BallType: this.player2BallType,
