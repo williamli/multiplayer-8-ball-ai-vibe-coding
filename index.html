@@ -977,21 +977,21 @@
                 
                 // Define rack positions
                 const rackPositions = [
-                    { number: 1, row: 0, col: 0 },     // Front ball (apex)
-                    { number: 9, row: 1, col: -1 },    // Second row left
-                    { number: 10, row: 1, col: 1 },    // Second row right
-                    { number: 8, row: 2, col: 0 },     // Third row middle (8 ball)
-                    { number: 11, row: 2, col: -2 },   // Third row left
-                    { number: 2, row: 2, col: 2 },     // Third row right
-                    { number: 3, row: 3, col: -3 },    // Fourth row far left
-                    { number: 4, row: 3, col: -1 },    // Fourth row middle left
-                    { number: 12, row: 3, col: 1 },    // Fourth row middle right
-                    { number: 13, row: 3, col: 3 },    // Fourth row far right
-                    { number: 14, row: 4, col: -4 },   // Fifth row far left
-                    { number: 15, row: 4, col: -2 },   // Fifth row middle left
-                    { number: 5, row: 4, col: 0 },     // Fifth row middle
-                    { number: 6, row: 4, col: 2 },     // Fifth row middle right
-                    { number: 7, row: 4, col: 4 }      // Fifth row far right
+                    { number: 1, row: 0, col: 0 },     // Front ball (apex) - Yellow
+                    { number: 2, row: 1, col: -1 },    // Second row left - Blue
+                    { number: 3, row: 1, col: 1 },     // Second row right - Red
+                    { number: 4, row: 2, col: -2 },    // Third row left - Purple
+                    { number: 5, row: 2, col: 0 },     // Third row middle - Orange
+                    { number: 6, row: 2, col: 2 },     // Third row right - Green
+                    { number: 7, row: 3, col: -3 },    // Fourth row far left - Brown
+                    { number: 8, row: 3, col: -1 },    // Fourth row middle left - Black
+                    { number: 9, row: 3, col: 1 },     // Fourth row middle right - Yellow stripe
+                    { number: 10, row: 3, col: 3 },    // Fourth row far right - Blue stripe
+                    { number: 11, row: 4, col: -4 },   // Fifth row far left - Red stripe
+                    { number: 12, row: 4, col: -2 },   // Fifth row middle left - Purple stripe
+                    { number: 13, row: 4, col: 0 },    // Fifth row middle - Orange stripe
+                    { number: 14, row: 4, col: 2 },    // Fifth row middle right - Green stripe
+                    { number: 15, row: 4, col: 4 }     // Fifth row far right - Brown stripe
                 ];
                 
                 // Calculate starting position for the rack - foot spot (3/4 of the table from the left)
@@ -1006,13 +1006,13 @@
                 // This ensures proper scaling regardless of table size
                 const ballDiameter = this.ballRadius * 2;
                 
-                // Standard pool balls touch each other in the rack
-                // We add a tiny gap (1.05) for better visual appearance and physics
-                const rowSpacing = parseFloat((ballDiameter * 1.05).toFixed(6));
+                // Make balls even more tightly packed with reduced spacing (80% of normal)
+                const spacingFactor = 0.8; // Reduced from 0.9 to make balls even closer together
+                const rowSpacing = parseFloat((ballDiameter * spacingFactor).toFixed(6));
                 
                 // For proper equilateral triangle formation, the vertical spacing needs to be
                 // adjusted by the sine of 60 degrees (or sqrt(3)/2)
-                const colSpacing = parseFloat((ballDiameter * 1.05 * Math.sqrt(3)/2).toFixed(6));
+                const colSpacing = parseFloat((ballDiameter * spacingFactor * Math.sqrt(3)/2).toFixed(6));
                 
                 // Create the balls in the rack
                 this.balls = [];
@@ -1058,6 +1058,49 @@
                     x: parseFloat(this.convertToAbsoluteX(pos.relX, this.width).toFixed(6)),
                     y: parseFloat(this.convertToAbsoluteY(pos.relY, this.height).toFixed(6))
                 }));
+            }
+            
+            // Ensure all balls in the rack are touching
+            ensureBallsTouching() {
+                // Get the apex ball (first ball in the rack)
+                const apexBall = this.balls.find(ball => ball.number === 1);
+                if (!apexBall) return;
+                
+                // Calculate the exact distance balls should be from each other (touching exactly)
+                const exactDistance = this.ballRadius * 2;
+                
+                // Define the rack structure with relative positions
+                const rackStructure = [
+                    { number: 1, row: 0, col: 0 },     // Front ball (apex) - Yellow
+                    { number: 2, row: 1, col: -1 },    // Second row left - Blue
+                    { number: 3, row: 1, col: 1 },     // Second row right - Red
+                    { number: 4, row: 2, col: -2 },    // Third row left - Purple
+                    { number: 5, row: 2, col: 0 },     // Third row middle - Orange
+                    { number: 6, row: 2, col: 2 },     // Third row right - Green
+                    { number: 7, row: 3, col: -3 },    // Fourth row far left - Brown
+                    { number: 8, row: 3, col: -1 },    // Fourth row middle left - Black
+                    { number: 9, row: 3, col: 1 },     // Fourth row middle right - Yellow stripe
+                    { number: 10, row: 3, col: 3 },    // Fourth row far right - Blue stripe
+                    { number: 11, row: 4, col: -4 },   // Fifth row far left - Red stripe
+                    { number: 12, row: 4, col: -2 },   // Fifth row middle left - Purple stripe
+                    { number: 13, row: 4, col: 0 },    // Fifth row middle - Orange stripe
+                    { number: 14, row: 4, col: 2 },    // Fifth row middle right - Green stripe
+                    { number: 15, row: 4, col: 4 }     // Fifth row far right - Brown stripe
+                ];
+                
+                // Calculate row and column spacing for tighter packing
+                const spacingFactor = 0.8; // Reduced from 0.9 to make balls even closer together
+                const rowSpacing = exactDistance * spacingFactor;
+                const colSpacing = exactDistance * spacingFactor * Math.sqrt(3)/2; // For equilateral triangle
+                
+                // Reposition all balls based on the apex ball's position
+                for (const ballInfo of rackStructure) {
+                    const ball = this.balls.find(b => b.number === ballInfo.number);
+                    if (ball) {
+                        ball.x = parseFloat((apexBall.x + (ballInfo.row * rowSpacing)).toFixed(6));
+                        ball.y = parseFloat((apexBall.y + (ballInfo.col * colSpacing)).toFixed(6));
+                    }
+                }
             }
             
             // Set up event listeners for user interaction
@@ -1235,7 +1278,10 @@
                         const dy = y - ball.y;
                         const distance = Math.sqrt(dx * dx + dy * dy);
                         
-                        if (distance < this.ballRadius + ball.radius) {
+                        // Only prevent overlap, but allow balls to touch exactly
+                        // (distance < sum of radii means overlap, distance == sum of radii means touching)
+                        const minDistance = this.ballRadius + ball.radius;
+                        if (distance < minDistance) {
                             return false;
                         }
                     }
@@ -2952,6 +2998,9 @@
             resetGame() {
                 // Reset ball positions
                 this.createBalls();
+                
+                // Ensure all balls are touching
+                this.ensureBallsTouching();
                 
                 // Reset game state
                 this.isBreakShot = true;
