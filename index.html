@@ -1249,6 +1249,7 @@
             // Check if a cue ball placement position is valid
             isValidCueBallPlacement(x, y) {
                 // The ball must be on the table (within the playing surface)
+                // Using the inside line of the brown border (cushion) as the boundary
                 const leftCushion = this.tablePadding + this.cushionWidth;
                 const rightCushion = this.width - this.tablePadding - this.cushionWidth;
                 const topCushion = this.tablePadding + this.cushionWidth;
@@ -1349,6 +1350,7 @@
                     this.updateBallPosition(this.cueBall, dt);
                     this.checkBallCollision(this.cueBall);
                     this.checkCushionCollision(this.cueBall);
+                    this.enforceBallBoundary(this.cueBall); // Ensure ball stays within boundaries
                 }
                 
                 // Update other balls - use a consistent order for determinism
@@ -1358,6 +1360,7 @@
                         this.updateBallPosition(ball, dt);
                         this.checkBallCollision(ball);
                         this.checkCushionCollision(ball);
+                        this.enforceBallBoundary(ball); // Ensure ball stays within boundaries
                     }
                 }
             }
@@ -1401,9 +1404,11 @@
             // Check if a ball collides with the table cushions
             checkCushionCollision(ball) {
                 // Use relative positions for cushions (0-1 scale)
+                // The reflection boundary should be the inside line of the brown border
+                // This is exactly at the cushion position (tablePadding + cushionWidth)
                 const cushionWidthRel = this.cushionWidth / (this.width - (this.tablePadding * 2));
                 
-                // Relative cushion positions
+                // Relative cushion positions - these define the inside edge of the brown border
                 const topCushionRel = 0 + cushionWidthRel;
                 const bottomCushionRel = 1 - cushionWidthRel;
                 const leftCushionRel = 0 + cushionWidthRel;
@@ -2130,6 +2135,7 @@
                     this.width - (this.tablePadding + this.cushionWidth) * 2,
                     this.height - (this.tablePadding + this.cushionWidth) * 2
                 );
+                // Note: The inside edge of the brown border (where the felt begins) is the reflection boundary for balls
                 
                 // Draw the kitchen line (for break shots)
                 if (this.isBreakShot) {
@@ -2875,6 +2881,9 @@
                     this.cueBall.dx = parseFloat((Math.cos(data.angle) * data.power * powerMultiplier * tableWidth).toFixed(6));
                     this.cueBall.dy = parseFloat((Math.sin(data.angle) * data.power * powerMultiplier * tableWidth).toFixed(6));
                     
+                    // Ensure the cue ball is within boundaries before starting the shot
+                    this.enforceBallBoundary(this.cueBall);
+                    
                     this.ballsMoving = true;
                     this.firstCollision = null; // Reset first collision detection for new shot
                 }
@@ -2888,6 +2897,9 @@
                     this.cueBall.y = this.convertToAbsoluteY(data.relY, this.height);
                     this.cueBall.inPocket = false;
                     this.placingCueBall = false;
+                    
+                    // Ensure the cue ball is within boundaries after placement
+                    this.enforceBallBoundary(this.cueBall);
                 }
             }
             
@@ -2957,6 +2969,11 @@
                 this.cueBall.dx = 0;
                 this.cueBall.dy = 0;
                 
+                // Ensure cue ball is within boundaries
+                if (!this.cueBall.inPocket) {
+                    this.enforceBallBoundary(this.cueBall);
+                }
+                
                 // Update all other balls with precise values
                 for (let i = 0; i < this.balls.length; i++) {
                     if (i < positions.balls.length) {
@@ -2965,6 +2982,11 @@
                         this.balls[i].inPocket = positions.balls[i].inPocket;
                         this.balls[i].dx = 0;
                         this.balls[i].dy = 0;
+                        
+                        // Ensure ball is within boundaries
+                        if (!this.balls[i].inPocket) {
+                            this.enforceBallBoundary(this.balls[i]);
+                        }
                     }
                 }
             }
@@ -3032,6 +3054,36 @@
                 // Update UI
                 this.updateGameInfo();
                 this.logMessage('Game reset. Player 1 breaks.');
+            }
+            
+            // Ensure a ball stays strictly within the playing area
+            enforceBallBoundary(ball) {
+                // Define the strict boundaries (inside edge of the brown border)
+                const leftBoundary = this.tablePadding + this.cushionWidth;
+                const rightBoundary = this.width - this.tablePadding - this.cushionWidth;
+                const topBoundary = this.tablePadding + this.cushionWidth;
+                const bottomBoundary = this.height - this.tablePadding - this.cushionWidth;
+                
+                // Ensure the ball is fully within the playing area
+                if (ball.x - ball.radius < leftBoundary) {
+                    ball.x = leftBoundary + ball.radius;
+                    ball.dx = 0; // Stop horizontal movement
+                }
+                
+                if (ball.x + ball.radius > rightBoundary) {
+                    ball.x = rightBoundary - ball.radius;
+                    ball.dx = 0; // Stop horizontal movement
+                }
+                
+                if (ball.y - ball.radius < topBoundary) {
+                    ball.y = topBoundary + ball.radius;
+                    ball.dy = 0; // Stop vertical movement
+                }
+                
+                if (ball.y + ball.radius > bottomBoundary) {
+                    ball.y = bottomBoundary - ball.radius;
+                    ball.dy = 0; // Stop vertical movement
+                }
             }
         }
     </script>
