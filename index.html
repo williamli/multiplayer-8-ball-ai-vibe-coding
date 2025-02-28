@@ -721,7 +721,8 @@
                 this.height = canvas.height;
                 
                 // Table dimensions
-                this.tablePadding = 40; // Reduced padding around the table for a smaller border
+                this.tablePadding = 80; // Doubled padding around the table for a larger border
+                this.extraBorder = 48; // 3rem transparent border (assuming 16px per rem)
                 this.pocketRadius = Math.min(this.width, this.height) * 0.04;
                 this.tableWidth = this.width - (this.tablePadding * 2);
                 this.tableHeight = this.height - (this.tablePadding * 2);
@@ -1787,6 +1788,21 @@
                 // Create a transparent border around the table for easier cue control
                 // First, clear everything to transparent
                 this.ctx.clearRect(0, 0, this.width, this.height);
+                
+                // Calculate the outer transparent border area
+                const outerBorderStart = this.tablePadding - this.extraBorder;
+                const outerBorderWidth = this.width - (outerBorderStart * 2);
+                const outerBorderHeight = this.height - (outerBorderStart * 2);
+                
+                // Draw a transparent outer border (for visual reference)
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                this.ctx.lineWidth = 1;
+                this.ctx.strokeRect(
+                    outerBorderStart,
+                    outerBorderStart,
+                    outerBorderWidth,
+                    outerBorderHeight
+                );
                 
                 // Draw table border (the wooden part)
                 this.ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--table-border').trim() || '#593A16';
