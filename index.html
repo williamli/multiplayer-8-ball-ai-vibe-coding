@@ -249,9 +249,8 @@
         .power-level {
             height: 100%;
             width: 0%;
-            background: linear-gradient(to right, yellow, orange, red);
+            background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
             transition: width 0.1s ease-out;
-            border-radius: 10px;
         }
 
         .modal {
@@ -706,7 +705,7 @@
                 
                 // Redraw everything when resized
                 if (game) {
-                    game.draw();
+                    game.handleResize();
                 }
             }
             
@@ -726,9 +725,13 @@
                 this.width = canvas.width;
                 this.height = canvas.height;
                 
+                // Store initial dimensions for relative calculations
+                this.initialWidth = this.width;
+                this.initialHeight = this.height;
+                
                 // Table dimensions
-                this.tablePadding = 80; // Doubled padding around the table for a larger border
-                this.extraBorder = 48; // 3rem transparent border (assuming 16px per rem)
+                this.tablePadding = Math.min(this.width, this.height) * 0.1; // Make padding relative to canvas size
+                this.extraBorder = Math.min(this.width, this.height) * 0.06; // Make border relative to canvas size
                 this.pocketRadius = Math.min(this.width, this.height) * 0.04;
                 this.tableWidth = this.width - (this.tablePadding * 2);
                 this.tableHeight = this.height - (this.tablePadding * 2);
@@ -798,6 +801,75 @@
                 
                 // Update UI
                 this.updateGameInfo();
+            }
+            
+            // Handle canvas resize
+            handleResize() {
+                // Store old dimensions for scaling
+                const oldWidth = this.width;
+                const oldHeight = this.height;
+                
+                // Update dimensions
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                // Calculate scale factors
+                const scaleX = this.width / oldWidth;
+                const scaleY = this.height / oldHeight;
+                
+                // Update table dimensions
+                this.tablePadding = Math.min(this.width, this.height) * 0.1;
+                this.extraBorder = Math.min(this.width, this.height) * 0.06;
+                this.pocketRadius = Math.min(this.width, this.height) * 0.04;
+                this.tableWidth = this.width - (this.tablePadding * 2);
+                this.tableHeight = this.height - (this.tablePadding * 2);
+                this.cushionWidth = Math.min(this.width, this.height) * 0.025;
+                
+                // Update ball radius
+                this.ballRadius = Math.min(this.width, this.height) * 0.02;
+                
+                // Update cue properties
+                this.cueLength = Math.min(this.width, this.height) * 0.3;
+                
+                // Scale ball positions
+                if (this.cueBall) {
+                    // Convert absolute positions to relative positions, then back to absolute for the new size
+                    this.cueBall.x = this.convertToAbsoluteX(this.convertToRelativeX(this.cueBall.x, oldWidth), this.width);
+                    this.cueBall.y = this.convertToAbsoluteY(this.convertToRelativeY(this.cueBall.y, oldHeight), this.height);
+                    this.cueBall.radius = this.ballRadius;
+                }
+                
+                for (const ball of this.balls) {
+                    ball.x = this.convertToAbsoluteX(this.convertToRelativeX(ball.x, oldWidth), this.width);
+                    ball.y = this.convertToAbsoluteY(this.convertToRelativeY(ball.y, oldHeight), this.height);
+                    ball.radius = this.ballRadius;
+                }
+                
+                // Update pocket positions
+                this.setupPockets();
+                
+                // Redraw the game
+                this.draw();
+            }
+            
+            // Convert absolute X position to relative position (0-1)
+            convertToRelativeX(x, width) {
+                return x / width;
+            }
+            
+            // Convert absolute Y position to relative position (0-1)
+            convertToRelativeY(y, height) {
+                return y / height;
+            }
+            
+            // Convert relative X position (0-1) to absolute position
+            convertToAbsoluteX(relativeX, width) {
+                return relativeX * width;
+            }
+            
+            // Convert relative Y position (0-1) to absolute position
+            convertToAbsoluteY(relativeY, height) {
+                return relativeY * height;
             }
             
             // Initialize the balls
@@ -893,25 +965,20 @@
             
             // Set up table pockets
             setupPockets() {
-                // Position pockets at the edge of the felt (green area), not deep in the cushion
-                const feltEdgeX = this.tablePadding + this.cushionWidth;
-                const feltEdgeY = this.tablePadding + this.cushionWidth;
-                const feltEndX = this.width - this.tablePadding - this.cushionWidth;
-                const feltEndY = this.height - this.tablePadding - this.cushionWidth;
-                
+                // Calculate pocket positions based on table dimensions
                 this.pockets = [
-                    // Top-left pocket (moved closer to the felt)
-                    { x: feltEdgeX, y: feltEdgeY },
-                    // Top-middle pocket
-                    { x: this.width / 2, y: feltEdgeY },
+                    // Top-left pocket
+                    { x: this.tablePadding, y: this.tablePadding },
+                    // Top-center pocket
+                    { x: this.width / 2, y: this.tablePadding },
                     // Top-right pocket
-                    { x: feltEndX, y: feltEdgeY },
+                    { x: this.width - this.tablePadding, y: this.tablePadding },
                     // Bottom-left pocket
-                    { x: feltEdgeX, y: feltEndY },
-                    // Bottom-middle pocket
-                    { x: this.width / 2, y: feltEndY },
+                    { x: this.tablePadding, y: this.height - this.tablePadding },
+                    // Bottom-center pocket
+                    { x: this.width / 2, y: this.height - this.tablePadding },
                     // Bottom-right pocket
-                    { x: feltEndX, y: feltEndY }
+                    { x: this.width - this.tablePadding, y: this.height - this.tablePadding }
                 ];
             }
             
@@ -978,35 +1045,37 @@
                     this.chargingShot = false;
                     this.cueVisible = false;
                     
-                    // Apply force to the cue ball (with increased power multiplier)
-                    if (this.cuePower > 0 && this.isMyTurn) {
-                        const angleOpposite = this.cueAngle + Math.PI;
-                        const powerMultiplier = 75.0; // Greatly increased force (5x more than before) for more powerful shots
+                    // Only process the shot if it's our turn and balls aren't already moving
+                    if (!this.ballsMoving && this.isMyTurn && !this.placingCueBall) {
+                        // Calculate shot angle and power
+                        const dx = this.mouseX - this.cueBall.x;
+                        const dy = this.mouseY - this.cueBall.y;
+                        const shotAngle = Math.atan2(dy, dx);
+                        const shotPower = this.cuePower;
                         
                         // Use precise values for deterministic physics
-                        const shotAngle = parseFloat(angleOpposite.toFixed(6));
-                        const shotPower = parseFloat(this.cuePower.toFixed(6));
-                        
-                        // Apply the shot with precise values
-                        this.cueBall.dx = Math.cos(shotAngle) * shotPower * powerMultiplier;
-                        this.cueBall.dy = Math.sin(shotAngle) * shotPower * powerMultiplier;
-                        
-                        // Reset physics accumulator for a fresh simulation
-                        this.physicsAccumulator = 0;
+                        const preciseAngle = parseFloat((shotAngle + Math.PI).toFixed(6));
+                        const precisePower = parseFloat(shotPower.toFixed(6));
                         
                         // Reset power meter UI
                         document.getElementById('powerLevel').style.width = '0%';
                         
-                        // Set state and begin physics simulation
+                        // Apply the shot to the cue ball
+                        const powerMultiplier = 75.0; // Increased power for more dynamic gameplay
+                        this.cueBall.dx = Math.cos(preciseAngle) * precisePower * powerMultiplier;
+                        this.cueBall.dy = Math.sin(preciseAngle) * precisePower * powerMultiplier;
                         this.ballsMoving = true;
-                        this.firstCollision = null; // Reset first collision for new shot
+                        this.firstCollision = null; // Reset first collision detection for new shot
                         
-                        // Send the shot data to the other player with precise values
+                        // Reset physics accumulator for a fresh simulation
+                        this.physicsAccumulator = 0;
+                        
+                        // Send the shot to the other player
                         if (this.connection) {
                             this.connection.send({
                                 type: 'shot',
-                                angle: shotAngle,
-                                power: shotPower,
+                                angle: preciseAngle,
+                                power: precisePower,
                                 ballPositions: this.getBallPositionsForSync()
                             });
                         }
@@ -1031,12 +1100,12 @@
                         this.placingCueBall = false;
                         this.cueBall.inPocket = false;
                         
-                        // Send the cue ball placement to the other player with precise values
+                        // Send the cue ball placement to the other player with relative values
                         if (this.connection) {
                             this.connection.send({
                                 type: 'cueBallPlacement',
-                                x: this.cueBall.x,
-                                y: this.cueBall.y
+                                relX: this.convertToRelativeX(this.cueBall.x, this.width),
+                                relY: this.convertToRelativeY(this.cueBall.y, this.height)
                             });
                         }
                         
@@ -1054,10 +1123,15 @@
             // Check if a cue ball placement position is valid
             isValidCueBallPlacement(x, y) {
                 // The ball must be on the table (within the playing surface)
-                if (x - this.ballRadius < this.tablePadding + this.cushionWidth || 
-                    x + this.ballRadius > this.width - this.tablePadding - this.cushionWidth ||
-                    y - this.ballRadius < this.tablePadding + this.cushionWidth || 
-                    y + this.ballRadius > this.height - this.tablePadding - this.cushionWidth) {
+                const leftCushion = this.tablePadding + this.cushionWidth;
+                const rightCushion = this.width - this.tablePadding - this.cushionWidth;
+                const topCushion = this.tablePadding + this.cushionWidth;
+                const bottomCushion = this.height - this.tablePadding - this.cushionWidth;
+                
+                if (x - this.ballRadius < leftCushion || 
+                    x + this.ballRadius > rightCushion ||
+                    y - this.ballRadius < topCushion || 
+                    y + this.ballRadius > bottomCushion) {
                     return false;
                 }
                 
@@ -1074,10 +1148,11 @@
                 // Check for collision with other balls (can't place cue ball overlapping another ball)
                 for (const ball of this.balls) {
                     if (!ball.inPocket) {
-                        const dx = ball.x - x;
-                        const dy = ball.y - y;
+                        const dx = x - ball.x;
+                        const dy = y - ball.y;
                         const distance = Math.sqrt(dx * dx + dy * dy);
-                        if (distance < this.ballRadius * 2) {
+                        
+                        if (distance < this.ballRadius + ball.radius) {
                             return false;
                         }
                     }
@@ -1282,18 +1357,20 @@
             // Check if a ball has been pocketed
             checkPockets() {
                 // Check if cue ball is pocketed
-                for (const pocket of this.pockets) {
-                    const dx = pocket.x - this.cueBall.x;
-                    const dy = pocket.y - this.cueBall.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < this.pocketRadius && !this.cueBall.inPocket) {
-                        this.cueBall.inPocket = true;
-                        this.cueBall.dx = 0;
-                        this.cueBall.dy = 0;
-                        this.foul = true;
-                        this.logMessage('Scratch! The cue ball has been pocketed.');
-                        break;
+                if (!this.cueBall.inPocket) {
+                    for (const pocket of this.pockets) {
+                        const dx = pocket.x - this.cueBall.x;
+                        const dy = pocket.y - this.cueBall.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < this.pocketRadius) {
+                            this.cueBall.inPocket = true;
+                            this.cueBall.dx = 0;
+                            this.cueBall.dy = 0;
+                            this.foul = true;
+                            this.logMessage('Scratch! The cue ball has been pocketed.');
+                            break;
+                        }
                     }
                 }
                 
@@ -2528,9 +2605,9 @@
             // Handle remote cue ball placement
             handleRemoteCueBallPlacement(data) {
                 if (!this.isMyTurn) {
-                    // Use the exact values sent for deterministic physics
-                    this.cueBall.x = data.x;
-                    this.cueBall.y = data.y;
+                    // Convert relative positions to absolute for this player's canvas
+                    this.cueBall.x = this.convertToAbsoluteX(data.relX, this.width);
+                    this.cueBall.y = this.convertToAbsoluteY(data.relY, this.height);
                     this.cueBall.inPocket = false;
                     this.placingCueBall = false;
                 }
@@ -2580,13 +2657,13 @@
             getBallPositionsForSync() {
                 const positions = {
                     cueBall: {
-                        x: parseFloat(this.cueBall.x.toFixed(6)),
-                        y: parseFloat(this.cueBall.y.toFixed(6)),
+                        relX: parseFloat(this.convertToRelativeX(this.cueBall.x, this.width).toFixed(6)),
+                        relY: parseFloat(this.convertToRelativeY(this.cueBall.y, this.height).toFixed(6)),
                         inPocket: this.cueBall.inPocket
                     },
                     balls: this.balls.map(ball => ({
-                        x: parseFloat(ball.x.toFixed(6)),
-                        y: parseFloat(ball.y.toFixed(6)),
+                        relX: parseFloat(this.convertToRelativeX(ball.x, this.width).toFixed(6)),
+                        relY: parseFloat(this.convertToRelativeY(ball.y, this.height).toFixed(6)),
                         inPocket: ball.inPocket
                     }))
                 };
@@ -2596,15 +2673,15 @@
             // Sync ball positions from data
             syncBallPositions(positions) {
                 // Update cue ball
-                this.cueBall.x = positions.cueBall.x;
-                this.cueBall.y = positions.cueBall.y;
+                this.cueBall.x = this.convertToAbsoluteX(positions.cueBall.relX, this.width);
+                this.cueBall.y = this.convertToAbsoluteY(positions.cueBall.relY, this.height);
                 this.cueBall.inPocket = positions.cueBall.inPocket;
                 
                 // Update all other balls
                 for (let i = 0; i < this.balls.length; i++) {
                     if (i < positions.balls.length) {
-                        this.balls[i].x = positions.balls[i].x;
-                        this.balls[i].y = positions.balls[i].y;
+                        this.balls[i].x = this.convertToAbsoluteX(positions.balls[i].relX, this.width);
+                        this.balls[i].y = this.convertToAbsoluteY(positions.balls[i].relY, this.height);
                         this.balls[i].inPocket = positions.balls[i].inPocket;
                     }
                 }
