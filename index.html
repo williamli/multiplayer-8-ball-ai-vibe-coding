@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=(), microphone=(), camera=()">
+    <meta name="permissions-policy" content="interest-cohort=(), microphone=(), camera=()">
     <meta property="og:title" content="Multiplayer 8-Ball Pool">
     <meta property="og:description" content="Play 8-Ball Pool with friends online in real-time">
     <meta property="og:image" content="og.png">
@@ -730,21 +732,32 @@
         });
         
         // Function to request network permission
-        function requestNetworkPermission() {
+        async function requestNetworkPermission() {
             try {
+                // First check if we have the permissions
+                const result = await navigator.permissions.query({ name: 'camera' });
+                
+                // Show loading spinner
+                grantAccessBtn.disabled = true;
+                permissionStatus.classList.remove('hidden');
+                permissionError.classList.add('hidden');
+                
                 // Initialize a temporary PeerJS instance to trigger permission request
                 const tempPeer = new Peer({
-                    debug: 0, // Minimal logging
+                    debug: 2, // More verbose logging
                     config: {
                         'iceServers': [
-                            { urls: 'stun:stun.l.google.com:19302' }
-                        ]
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' }
+                        ],
+                        iceTransportPolicy: 'all',
+                        sdpSemantics: 'unified-plan'
                     }
                 });
                 
                 // Handle successful permission grant
                 tempPeer.on('open', (id) => {
-                    console.log("Network permission granted");
+                    console.log("Network permission granted, peer ID:", id);
                     // Destroy the temporary peer
                     tempPeer.destroy();
                     // Show the game
@@ -759,9 +772,10 @@
                 
                 // Set a timeout for the permission request
                 setTimeout(() => {
-                    // If we haven't gotten a response after 15 seconds, show an error
                     if (permissionScreen.style.display !== 'none') {
+                        console.log("Permission request timed out");
                         handlePermissionError();
+                        tempPeer.destroy();
                     }
                 }, 15000);
                 
@@ -780,8 +794,9 @@
         
         // Show the game after permission is granted
         function showGame() {
-            permissionScreen.style.display = 'none';
-            gameContainer.style.display = 'flex';
+            // Hide permission screen and show game container
+            document.getElementById('permissionScreen').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'flex';
             
             // Initialize the game
             initializeGame();

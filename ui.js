@@ -15,9 +15,15 @@ class UIManager {
     // Permission screen
     const grantAccessBtn = document.getElementById('grantAccessBtn');
     if (grantAccessBtn) {
-      grantAccessBtn.addEventListener('click', () =>
-        this.game.requestPermission()
-      );
+      grantAccessBtn.addEventListener('click', () => {
+        // Show loading spinner
+        grantAccessBtn.disabled = true;
+        document.getElementById('permissionStatus').classList.remove('hidden');
+        document.getElementById('permissionError').classList.add('hidden');
+
+        // Call the global requestNetworkPermission function
+        requestNetworkPermission();
+      });
     }
 
     // Connection buttons
